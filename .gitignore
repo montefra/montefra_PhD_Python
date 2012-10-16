@@ -1,0 +1,9 @@
+*.dat
+*.pyc
+*.eps
+*.pdf
+*.png
+*.jpg
+*~
+core
+
