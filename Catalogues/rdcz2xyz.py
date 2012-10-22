@@ -9,13 +9,8 @@ x	y	z	w	bias	n(x,y,z)	n_b(z)	M	redfhist
 """
 
 #import constants as const
-import common_functions as cf
-import cosmologydir as c
 import my_functions as mf
 import numpy as np
-import scipy.interpolate as spi
-import sys
-
 
 def parse(argv):
   """
@@ -66,11 +61,51 @@ def parse(argv):
       help="Format of the output files")
 
   p.add_argument("--usecols", action="store", nargs="+", type=int,
-      help="""Read the selected columns. By default read all the columns.If thi option is used, 
-      make sure the the first three columns read in are ra, dec and redshift.""") 
+      help="""Read the selected columns. By default read all the columns.If thi
+      option is used, make sure the the first three columns read in are ra, dec
+      and redshift.""") 
 
-  return p.parse_args(args=argv)
+  description = """Parameters related to the parallel computation"""
+  p, parallel = apc.parallel_group( p, description=description )
 
+  return p.parse_args(args=argv)  #end def parse(argv)
+
+def comoving_distance( om, ok, wde, h0, zrange=None, nbins=None):
+  """Compute the comoving distance given the cosmology and returns a function
+  reference. If *zrange* is not *None*, the the comoving distance is evaluated
+  in *nbins* in *zrange* and then a UnivariateSpline is returned
+  Parameters
+  ----------
+  om, ok, wde, h0: floats
+    omega matter, omega curvature, dark energy equation of state and reduced
+    hubble parameter (h0=1 is equivalent of getting the distance in Mpc/h) 
+  zrange: 2 element list
+    lower and upper limit in the redshift range
+  nbins: int
+    number of bins in redshift 
+  output
+  ------
+  dis: function
+    function that evaluates the comoving distance at given redshift(s)
+
+  Examples
+  --------
+    d = distance( 0.27, 0, -1, 1)
+    z = np.linspace(0, 1, num=50)
+    comdis = d(z)
+  """
+
+  import cosmologydir as c
+  cos = c.Setcosmology( om=om, ok=ok, wde=wde, h=h0 ) #set the cosmology
+  d = c.Distance( cos )   #create the distance object
+  if( args.zrange == None ):  #If no interpolation required
+    dis = d.comoving_distance_z #reference the function that compute the distance
+  else:   #otherwise compute the comoving distance 
+    import scipy.interpolate as spi  #scipy interpolation routines
+    z = np.linspace( zrange[0], zrange[1], num=nbins ) #find the redshifts
+    D_c = d.comoving_distance_z(z)    #get the distance
+    dis = spi.UnivariateSpline( z, D_c )   #create the spline function
+  return dis   #end def comoving_distance( ... )
 
 def rdz2xyz(rdz, dis):
   """Get an array with ra, dec and redshift and return an array with x, y and z in Mpc/h 
@@ -94,56 +129,119 @@ def rdz2xyz(rdz, dis):
   xyz[:,1] = rdz[:,2] * np.sin(rdz[:,1]) * np.sin(rdz[:,0])   #fill the y coordinates
   xyz[:,2] = rdz[:,2] * np.cos(rdz[:,1])    #fill the z coordinates
 
-  return xyz
+  return xyz   #end def rdz2xyz(rdz, dis):
+
+def convert_save(f, distance, **kwargs ):
+  """
+  Read file *f*, converts ra, dec, z into cartesian coordinates, computing the
+  comoving distance at redshift z stored in *distance*, and save to a new file
+  Parameters
+  ----------
+  f: file object
+    file containing ra, dec and z
+  dis: function
+    function that evaluates the comoving distance at given redshift(s)
+  output
+  ------
+  max, min: lists
+    maximum and minimum values of x, y and z
+  If kwargs['skip'] == True and the output file name already exists, a *None*
+  is returned
+
+  accepted kwargs that affects the function
+  +verbose: verbose mode [True|False] 
+  +replace: replace string *replace[0]* with *replace[1]* in f.name
+  +insert: insert string *insert[0]* before *insert[1]* in f.name
+  +skip: existing file names skipped [True|False]
+  +overwrite: existing file names overwritten [True|False]
+  +usecols: columns to read from the input files. the first three must be ra,
+    dec and redshift
+
+  """
+  if(kwargs['verbose'] == True):
+    print("Process catalogue '{0}'.".format(f.name))
+
+  #create the output file name and check it
+  if(kwargs['replace'] == None):
+    ofile, skip = mf.insert_src(f.name, kwargs['insert'],
+	overwrite=kwargs['overwrite'], skip=kwargs['skip'])
+  else:
+    ofile, skip = mf.replace_src(f.name, kwargs['replace'],
+	overwrite=kwargs['overwrite'], skip=kwargs['skip'])
+  if(skip == True):
+    print("Skipping file '{0}'".format(f.name))
+    return None
+
+  cat = np.loadtxt( f, usecols=kwargs['usecols'] )  #read the input catalogu
+
+  out = np.ones((cat.shape[0], 9))   #create the output catalogue
+
+  out[:,8] = cat[:,2]   #save the redshift in the last column of the output file
+  if(cat.shape[1]<=8):  #if the total number of columns is less than 8
+    out[ :, 3:cat.shape[1] ] = cat[ :, 3:]   #all are copied
+  else:#only the first 5 columns after ra, dec, redshift are copied
+    out[ :, 3:8 ] = cat[ :, 3:8 ]   
+
+  out[:,:3] = rdz2xyz(np.copy(cat[:,:3]), dis)   #convert ra, dec, red in x,y,z in Mpc/h
+
+  #save the converted catalogue
+  np.savetxt(ofile, out, fmt=kwargs['fmt'], delimiter='\t')
+
+  #return the max and minimum
+  return np.amax(out[:,:3], axis=0), np.amin(out[:,:3], axis=0)
+  #end def convert_save(f, distance, **kwargs ):
+
 
 if __name__ == "__main__":   # if is the main
 
+  import sys
   args = parse(sys.argv[1:])
 
-  cos = cf.set_cosmology( args.om, args.ok, args.wde, h0=args.h0 ) #set the cosmology
-  d = c.distance.Distance( cos )   #create the distance object
-  if( args.zrange == None ):  #If no interpolation required
-    dis = d.comoving_distance_z #reference the function that compute the distance
-  else:   #otherwise compute the comoving distance 
-    z = np.linspace( args.zrange[0], args.zrange[1], num=args.nbins ) #find the redshifts
-    D_c = d.comoving_distance_z(z)    #get the distance
-    dis = spi.UnivariateSpline( z, D_c )   #create the spline function
+  #compute the comoving distance for the given cosmology
+  dis = comoving_distance( args.om, args.ok, args.wde, args.h0,
+      zrange=args.zrange, nbins=args.nbins)
 
-  absmin, absmax= np.array([+np.inf,]*3), np.array([-np.inf,]*3)  #initialise the max and minimum 
+  #if parallel computation required, check that Ipython.parallel.Client 
+  #is in installed and that the ipycluster has been started
+  if args.parallel :
+    import ipython_parallel as IPp
+    args.parallel, lview = IPp.start_load_balanced_view( )
 
-  for fn in args.ifname:  #file name loop
-    if(args.verbose == True):
-      print("Process catalogue '{0}'.".format(fn.name))
+  #run the script in serial mode
+  if( args.parallel == False ):  #if: parallel
+    #initialise the list of maxima and minima in the output file
+    maxi, mini = [], []
+    for fn in args.ifname:  #file name loop
+      #convert the coordinates and return maxima and minima
+      temp = convert_save(fn, dis, **vars(args) ) 
+      if( temp != None ):
+	maxi.append( temp[0] )
+	mini.append( temp[1] )
+  #run the script using the IPython parallel environment 
+  else:    #if: parallel
+    engines_id = lview.client.ids  #get the id of the engines_id
+    initstatus = lview.queue_status()  #get the initial status
 
-    #create the output file name and check it
-    if(args.replace == None):
-      ofile, skip = mf.insert_src(fn.name, args.insert, overwrite=args.overwrite, skip=args.skip)
-    else:
-      ofile, skip = mf.replace_src(fn.name, args.replace, overwrite=args.overwrite, skip=args.skip)
-    if(skip == True):
-      print("Skipping")
-      continue
+    #submit the jobs and save the list of jobs
+    runs = [ lview.apply( convert_save, fn, dis, **vars(args) ) 
+	for fn in args.ifname ]
 
-    cat = np.loadtxt( fn.name, usecols=args.usecols )  #read the input catalogu
+    if args.verbose :   #if some info is required
+      IPp.advancement_jobs( lview, len(runs), engines_id, update=args.update,
+	  init_status=initstatus )
+    else:   #if no info at all is wanted
+      lview.wait()  #wait for the end
 
-    out = np.ones((cat.shape[0], 9))   #create the output catalogue
+    #get the maxima and minima from the computations excluding the None
+    maxi = [r.result[0] for r in runs if r is not None]
+    mini = [r.result[1] for r in runs if r is not None]
+  #end if: parallel
 
-    out[:,8] = cat[:,2]   #save the redshift in the last column of the output file
-    if(cat.shape[1]<=8):  #if the total number of columns is less than 8
-      out[ :, 3:cat.shape[1] ] = cat[ :, 3:]   #all are copied
-    else:
-      out[ :, 3:8 ] = cat[ :, 3:8 ]   #only the first 5 columns after ra, dec, redshift are copied
+  #compute absolute maximum and minimum
+  absmax = np.max( maxi, axis=0)
+  absmin = np.min( mini, axis=0)
 
-    out[:,:3] = rdz2xyz(np.copy(cat[:,:3]), dis)   #convert ra, dec, red in x,y,z in Mpc/h
-    #find the absolute max and minimum
-    pmin, pmax = np.amin(out[:,:3], axis=0), np.amax(out[:,:3], axis=0)
-    absmin, absmax = np.amin([absmin,pmin],axis=0), np.amax([absmax,pmax],axis=0)   #get absolute maximum and minimum
-
-    np.savetxt(ofile, out, fmt=args.fmt, delimiter='\t')
-
-
-  print("Absolute maximum and minimum:", absmax, absmin)
-  print("Difference:", absmax-absmin)
-
+  print("Absolute maximum and minimum: {0:.3f} and {1:.3f}".format( absmax, absmin) )
+  print("Difference: {0:.3f}".format( absmax-absmin) )
 
   exit()

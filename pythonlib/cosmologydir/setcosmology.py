@@ -29,7 +29,8 @@ class Setcosmology(object):
     "wa":
       derivative of wDE(a) for model wDE(a) = w0 + wa(1-a) [default: 0]
     "h", "h0", "H", "H0":
-      Hubble parameter ("H", "H0") or reduced Hubble parameters ("h", "h0") [default: h=0.74
+      Hubble parameter ("H", "H0") or reduced Hubble parameters ("h", "h0")
+      [default: h=0.74
     """
     keys = sorted(cosmo.keys())   #get the keywords
     self._set_default()
