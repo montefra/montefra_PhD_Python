@@ -107,6 +107,36 @@ def cosmology_group(p, description=None, print_def=False, h0_def=None):
     cosmo.add_argument("--h0", action="store", type=float, default=h0_def, help='''Reduced Hubble parameter.''')
   return p, cosmo
 
+
+def parallel_group(p, description=None):
+  """add group with parameters for parallel computation
+  Parameters
+  ----------
+  p: argparse instance
+    object containing the command line parsing arguments
+  description: string (optional)
+    description of the group
+  output
+  ------
+  p: argparse instance
+    object containing the updated command line parsing arguments 
+  parallel: 
+    group containing the parallel options
+  """
+  parallel = p.add_argument_group(title="Parallel computation", 
+      description=description)
+
+  parallel.add_argument("-p", "--parallel", action="store_true", 
+      help="""Enable parallel computing as in Ipython > 0.12. The ipcluster
+      must be already up. Can be started simply typing: 
+      ipcluster start --n=#engines""")
+
+  parallel.add_argument("-u", "--update", action="store", default=30, 
+      help="""Update rate for the queue status. Set to *-1* to disable the printout""")
+
+  return p, parallel
+
+
 #the following functions are custom types and actions for argparse
 def pow2(string):
   """
