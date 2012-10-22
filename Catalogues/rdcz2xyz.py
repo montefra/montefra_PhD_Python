@@ -159,17 +159,17 @@ def convert_save(f, distance, **kwargs ):
 
   """
   if(kwargs['verbose'] == True):
-    print("Process catalogue '{0}'.".format(f.name))
+    print("Process catalogue '{0}'.".format(f))
 
   #create the output file name and check it
   if(kwargs['replace'] == None):
-    ofile, skip = mf.insert_src(f.name, kwargs['insert'],
+    ofile, skip = mf.insert_src(f, kwargs['insert'],
 	overwrite=kwargs['overwrite'], skip=kwargs['skip'])
   else:
-    ofile, skip = mf.replace_src(f.name, kwargs['replace'],
+    ofile, skip = mf.replace_src(f, kwargs['replace'],
 	overwrite=kwargs['overwrite'], skip=kwargs['skip'])
   if(skip == True):
-    print("Skipping file '{0}'".format(f.name))
+    print("Skipping file '{0}'".format(f))
     return None
 
   cat = np.loadtxt( f, usecols=kwargs['usecols'] )  #read the input catalogu
@@ -223,14 +223,14 @@ if __name__ == "__main__":   # if is the main
     initstatus = lview.queue_status()  #get the initial status
 
     #submit the jobs and save the list of jobs
-    runs = [ lview.apply( convert_save, fn, dis, **vars(args) ) 
+    runs = [ lview.apply( convert_save, fn.name, dis, **vars(args) ) 
 	for fn in args.ifname ]
 
     if args.verbose :   #if some info is required
-      IPp.advancement_jobs( lview, len(runs), engines_id, update=args.update,
+      IPp.advancement_jobs( lview, runs, engines_id, update=args.update,
 	  init_status=initstatus )
     else:   #if no info at all is wanted
-      lview.wait()  #wait for the end
+      lview.wait( jobs=runs )  #wait for the end
 
     #get the maxima and minima from the computations excluding the None
     maxi = [r.result[0] for r in runs if r is not None]
@@ -241,7 +241,13 @@ if __name__ == "__main__":   # if is the main
   absmax = np.max( maxi, axis=0)
   absmin = np.min( mini, axis=0)
 
-  print("Absolute maximum and minimum: {0:.3f} and {1:.3f}".format( absmax, absmin) )
-  print("Difference: {0:.3f}".format( absmax-absmin) )
+  maxstring_lenght = len("Difference" )
+  string_template = "{:<{}}  "+"{:^8}  "*3
+  float_template  = "{:<{}}: "+"{:>8.3f}, "*3
+
+  print string_template.format( " ", maxstring_lenght, "x", "y", "z" )
+  print float_template.format( "Maximun", maxstring_lenght, *absmax )
+  print float_template.format( "Minimum", maxstring_lenght, *absmin )
+  print float_template.format( "Difference", maxstring_lenght, *absmax-absmin )
 
   exit()

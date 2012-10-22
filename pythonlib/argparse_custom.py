@@ -131,7 +131,7 @@ def parallel_group(p, description=None):
       must be already up. Can be started simply typing: 
       ipcluster start --n=#engines""")
 
-  parallel.add_argument("-u", "--update", action="store", default=30, 
+  parallel.add_argument("-u", "--update", action="store", default=30, type=int,
       help="""Update rate for the queue status. Set to *-1* to disable the printout""")
 
   return p, parallel

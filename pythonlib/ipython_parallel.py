@@ -41,13 +41,14 @@ def start_load_balanced_view( ):
 
   lbview = c.load_balanced_view() #and the load view
   #import numpy on all engines
-  c[:].execute( 'import numpy as np; import my_functions as mf' )  
+  c[:].execute( 'import numpy as np' )  
+  c[:].execute( 'import my_functions as mf' )  
 
   return True, lbview  #return true and the balanced view
 #end def start_load_balanced_view( )
 
 
-def advancement_jobs( lbview, tot_jobs, enginesid, update=30,
+def advancement_jobs( lbview, jobs, enginesid, update=30,
     init_status=None):
   """Print the advancement of the jobs in the queue.  
   This functions returns when all jobs are finished
@@ -55,8 +56,8 @@ def advancement_jobs( lbview, tot_jobs, enginesid, update=30,
   ----------
   lbview: load_balanced_view object
     scheduler that runs the jobs
-  tot_jobs: int
-    number of jobs submitted to the task scheduler
+  jobs: list of AsyncResult objects
+    list of jobs submitted to the task scheduler
   enginesid: list of int
     ids of the engines used in the computation
   update: float or int
@@ -67,11 +68,13 @@ def advancement_jobs( lbview, tot_jobs, enginesid, update=30,
     number of jobs per processors is returned
   """
 
+  import numpy as np
+  tot_jobs = len(jobs)
   print( "Starting {0} jobs using {1} engines".format( 
     tot_jobs, len(enginesid) ) ) #start message
   if( update > 0 ):  #if: advancement status
     import stdin_stdout as sio
-    while not lbview.wait( timeout=update ):
+    while not lbview.wait( jobs=jobs, timeout=update ):
       status = lbview.queue_status()
       #get the number of running jobs
       totrunning = np.sum( [status[i]['tasks'] for i in enginesid ] )
@@ -80,12 +83,12 @@ def advancement_jobs( lbview, tot_jobs, enginesid, update=30,
       percentage_run = already_run / float(tot_jobs)
       #print the status message
       sio.printer( """{0:.1%} ({1} out of {2}) of submitted job finished. {3}
-	  running, {4} pending. """.format( percentage_run, already_run,
+      running, {4} pending. """.format( percentage_run, already_run,
 	    tot_jobs, totrunning , tot_torun ) )
     sio.printer( "Finished" )
   else:
   #end if: advancement status
-    lbview.wait()  #wait until it finishes
+    lbview.wait( jobs=jobs )  #wait until it finishes
     print( "Finished" )
   #end if: advancement status
   #if details about the jobs per processor are wanted
