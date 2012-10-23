@@ -205,7 +205,8 @@ if __name__ == "__main__":   # if is the main
   #is in installed and that the ipycluster has been started
   if args.parallel :
     import ipython_parallel as IPp
-    args.parallel, lview = IPp.start_load_balanced_view( )
+    imports = [ 'import numpy as np', 'import my_functions as mf' ]
+    args.parallel, lview = IPp.start_load_balanced_view( imports )
 
   #run the script in serial mode
   if( args.parallel == False ):  #if: parallel
@@ -213,7 +214,7 @@ if __name__ == "__main__":   # if is the main
     maxi, mini = [], []
     for fn in args.ifname:  #file name loop
       #convert the coordinates and return maxima and minima
-      temp = convert_save(fn, dis, **vars(args) ) 
+      temp = convert_save(fn.name, dis, **vars(args) ) 
       if( temp != None ):
 	maxi.append( temp[0] )
 	mini.append( temp[1] )
@@ -242,8 +243,8 @@ if __name__ == "__main__":   # if is the main
   absmin = np.min( mini, axis=0)
 
   maxstring_lenght = len("Difference" )
-  string_template = "{:<{}}  "+"{:^8}  "*3
-  float_template  = "{:<{}}: "+"{:>8.3f}, "*3
+  string_template = "{:<{}}  "+"  ".join(["{:^9}",]*3)
+  float_template = "{:<{}}: "+", ".join(["{:>+9.3f}",]*3)
 
   print string_template.format( " ", maxstring_lenght, "x", "y", "z" )
   print float_template.format( "Maximun", maxstring_lenght, *absmax )

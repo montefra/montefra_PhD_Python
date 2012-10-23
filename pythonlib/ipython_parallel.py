@@ -1,7 +1,7 @@
 """collection of functions that enable parallel computation using the parallel
 environment in IPython"""
 
-def start_load_balanced_view( ):
+def start_load_balanced_view( to_execute=None):
   """
   Start a load_balanced_view from IPython.parallel. 
   If the module is not found or ipcluster is not initialised this function does
@@ -9,6 +9,10 @@ def start_load_balanced_view( ):
   Otherwise the client and the load balanced view are initialised. numpy and
   my_functions are imported in all the engines as np and mf, respectively
 
+  Parameters
+  ----------
+  to_execute: string or list of strings
+    command(s) to execute on all the nodes. Thought for short tasks, like importing modules
   output
   ------
   parallel: bool
@@ -17,7 +21,7 @@ def start_load_balanced_view( ):
     use lview.apply( ... ) to apply a job to the balanced view. 
   """
   try:  #try to import Client
-    from IPython.parallel import Client
+    from IPython.parallel import Client, error
   except ImportError:  #if the import fails
     print( """Ipython.parallel.Client cannot be imported.
 	Make sure to have Ipython version > 0.xx installed.
@@ -39,10 +43,18 @@ def start_load_balanced_view( ):
       print( "Start ipcluster and restart this script" )
       exit
 
+  #execute the required code on all engines
+  if to_execute is not None :
+    if( type( to_execute ) == str ): #if it's just a string
+      to_execute = [to_execute, ]  #convert to list
+    #execute the required commands in block mode, avoids errors if command is slow
+    for te in to_execute:
+      try:
+        c[:].execute( te, block=True )  #try to execute the command
+      except error.CompositeError, e:  #if an error occurs, print a single one, not one per engine
+        e.raise_exception()
+
   lbview = c.load_balanced_view() #and the load view
-  #import numpy on all engines
-  c[:].execute( 'import numpy as np' )  
-  c[:].execute( 'import my_functions as mf' )  
 
   return True, lbview  #return true and the balanced view
 #end def start_load_balanced_view( )
@@ -82,9 +94,8 @@ def advancement_jobs( lbview, jobs, enginesid, update=30,
       already_run = tot_jobs - (totrunning + tot_torun) 
       percentage_run = already_run / float(tot_jobs)
       #print the status message
-      sio.printer( """{0:.1%} ({1} out of {2}) of submitted job finished. {3}
-      running, {4} pending. """.format( percentage_run, already_run,
-	    tot_jobs, totrunning , tot_torun ) )
+      sio.printer( """{0:.1%} done. {1} finished {2} running, {3} pending.""".format( 
+        percentage_run, already_run, totrunning , tot_torun ) )
     sio.printer( "Finished" )
   else:
   #end if: advancement status
