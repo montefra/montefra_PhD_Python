@@ -1,7 +1,7 @@
 """collection of functions that enable parallel computation using the parallel
 environment in IPython"""
 
-def start_load_balanced_view( to_execute=None):
+def start_load_balanced_view( to_execute=None ):
   """
   Start a load_balanced_view from IPython.parallel. 
   If the module is not found or ipcluster is not initialised this function does
@@ -36,13 +36,14 @@ def start_load_balanced_view( to_execute=None):
 	start it before executing the code. 
 	'ipcluster start --n=4'.""")
     import stdin_stdout as sio
-    sio.message = "Do you want to continue in seria mode"
-    if( yes_or_not( message, 'y' ) ):
+    message = "Do you want to continue in serial mode"
+    if( sio.yes_or_not( message, 'y' ) ):
       return False, None  #disable the paraller computation
     else:
       print( "Start ipcluster and restart this script" )
-      exit
+      exit()
 
+  dview = c[:]   #get the direct view
   #execute the required code on all engines
   if to_execute is not None :
     if( type( to_execute ) == str ): #if it's just a string
@@ -50,7 +51,7 @@ def start_load_balanced_view( to_execute=None):
     #execute the required commands in block mode, avoids errors if command is slow
     for te in to_execute:
       try:
-        c[:].execute( te, block=True )  #try to execute the command
+        dview.execute( te, block=True )  #try to execute the command
       except error.CompositeError, e:  #if an error occurs, print a single one, not one per engine
         e.raise_exception()
 

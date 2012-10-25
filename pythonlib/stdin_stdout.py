@@ -20,9 +20,9 @@ def yes_or_not( message, default ):
   """
   #check the default value
   if( default == 'y' ):
-    choise = ([y]/n)
+    choise = '([y]/n)'
   elif( default == 'n' ):
-    choise = (y/[n])
+    choise = '(y/[n])'
   else:
     print( "The possible choises are 'y' or 'n' only" )
     exit()
@@ -32,7 +32,7 @@ def yes_or_not( message, default ):
     message = message[:-1]
   #ask the question and parse the answer
   while True:
-    from_stdin = raw_input( "{0} {1}? " ).strip()
+    from_stdin = raw_input( "{0} {1}? ".format(message, choise) ).strip()
     if( len(from_stdin)==0 ):  #if the input is empty, set default
       from_stdin = default
     #check and return if std matches

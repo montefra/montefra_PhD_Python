@@ -139,7 +139,7 @@ def convert_save(f, distance, **kwargs ):
   ----------
   f: file object
     file containing ra, dec and z
-  dis: function
+  distance: function
     function that evaluates the comoving distance at given redshift(s)
   output
   ------
@@ -158,18 +158,23 @@ def convert_save(f, distance, **kwargs ):
     dec and redshift
 
   """
+  if( type(f) == file ):  #if f is a file object
+    fname = f.name  #get the file name
+  else:  #it's alread the file name
+    fname = f  #if
+
   if(kwargs['verbose'] == True):
-    print("Process catalogue '{0}'.".format(f))
+    print("Process catalogue '{0}'.".format(fname))
 
   #create the output file name and check it
   if(kwargs['replace'] == None):
-    ofile, skip = mf.insert_src(f, kwargs['insert'],
+    ofile, skip = mf.insert_src(fname, kwargs['insert'],
 	overwrite=kwargs['overwrite'], skip=kwargs['skip'])
   else:
-    ofile, skip = mf.replace_src(f, kwargs['replace'],
+    ofile, skip = mf.replace_src(fname, kwargs['replace'],
 	overwrite=kwargs['overwrite'], skip=kwargs['skip'])
   if(skip == True):
-    print("Skipping file '{0}'".format(f))
+    print("Skipping file '{0}'".format(fname))
     return None
 
   cat = np.loadtxt( f, usecols=kwargs['usecols'] )  #read the input catalogu
@@ -182,7 +187,7 @@ def convert_save(f, distance, **kwargs ):
   else:#only the first 5 columns after ra, dec, redshift are copied
     out[ :, 3:8 ] = cat[ :, 3:8 ]   
 
-  out[:,:3] = rdz2xyz(np.copy(cat[:,:3]), dis)   #convert ra, dec, red in x,y,z in Mpc/h
+  out[:,:3] = rdz2xyz(np.copy(cat[:,:3]), distance)   #convert ra, dec, red in x,y,z in Mpc/h
 
   #save the converted catalogue
   np.savetxt(ofile, out, fmt=kwargs['fmt'], delimiter='\t')
@@ -204,9 +209,19 @@ if __name__ == "__main__":   # if is the main
   #if parallel computation required, check that Ipython.parallel.Client 
   #is in installed and that the ipycluster has been started
   if args.parallel :
+
     import ipython_parallel as IPp
-    imports = [ 'import numpy as np', 'import my_functions as mf' ]
-    args.parallel, lview = IPp.start_load_balanced_view( imports )
+    import os
+    #the absolute path and file name of this script
+    path, fname = os.path.split( os.path.abspath(sys.argv[0]) )
+    function_name = 'rdz2xyz'  #name of the function to import
+    #command to run on all the engines
+    imports = [ 'import numpy as np', 'import my_functions as mf',
+	#add the script directory to the python path
+	'import sys', 'sys.path.append("{0}")'.format(path),     
+	#import the desired function in the namespace
+	'from {0} import {1}'.format( os.path.splitext(fname)[0], function_name) ]  
+    args.parallel, lview = IPp.start_load_balanced_view( to_execute=imports )
 
   #run the script in serial mode
   if( args.parallel == False ):  #if: parallel
@@ -214,7 +229,7 @@ if __name__ == "__main__":   # if is the main
     maxi, mini = [], []
     for fn in args.ifname:  #file name loop
       #convert the coordinates and return maxima and minima
-      temp = convert_save(fn.name, dis, **vars(args) ) 
+      temp = convert_save(fn, dis, **vars(args) ) 
       if( temp != None ):
 	maxi.append( temp[0] )
 	mini.append( temp[1] )
@@ -224,7 +239,7 @@ if __name__ == "__main__":   # if is the main
     initstatus = lview.queue_status()  #get the initial status
 
     #submit the jobs and save the list of jobs
-    runs = [ lview.apply( convert_save, fn.name, dis, **vars(args) ) 
+    runs = [ lview.apply( convert_save, os.path.abspath(fn.name), dis, **vars(args) ) 
 	for fn in args.ifname ]
 
     if args.verbose :   #if some info is required
