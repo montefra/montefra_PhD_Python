@@ -26,7 +26,7 @@ def parse(argv):
   ---------
   """
   
-  import argparse as ap  #import optsparse: allows nice command line option handling
+  import argparse as ap 
   import argparse_custom as apc
 
   description = """ Convert the file from ra, dec, redshift into cartesian coordinates assuming a cosmology.
@@ -38,7 +38,8 @@ def parse(argv):
     The output file has the structure
     x	y	z	w	bias	n(x,y,z)	n_b(z)	M	redshift
     (The columns that are not present in the input file are filled with 1, except the redshift)"""
-  p = ap.ArgumentParser(description=description, formatter_class=ap.ArgumentDefaultsHelpFormatter)
+  p = ap.ArgumentParser(description=description,
+      formatter_class=ap.ArgumentDefaultsHelpFormatter)
 
   p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'), 
       help="Input file name(s), containing ra and dec in the first two columns")
@@ -137,10 +138,11 @@ def convert_save(f, distance, **kwargs ):
   comoving distance at redshift z stored in *distance*, and save to a new file
   Parameters
   ----------
-  f: file object
+  f: file object or string
     file containing ra, dec and z
   distance: function
     function that evaluates the comoving distance at given redshift(s)
+  kwargs: keyword arguments
   output
   ------
   max, min: lists
