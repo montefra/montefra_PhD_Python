@@ -105,7 +105,7 @@ def comoving_distance( om, ok, wde, h0, zrange=None, nbins=None):
     import scipy.interpolate as spi  #scipy interpolation routines
     z = np.linspace( zrange[0], zrange[1], num=nbins ) #find the redshifts
     D_c = d.comoving_distance_z(z)    #get the distance
-    dis = spi.UnivariateSpline( z, D_c )   #create the spline function
+    dis = spi.InterpolatedUnivariateSpline( z, D_c )   #create the spline function
   return dis   #end def comoving_distance( ... )
 
 def rdz2xyz(rdz, dis):
@@ -163,7 +163,7 @@ def convert_save(f, distance, **kwargs ):
   if( type(f) == file ):  #if f is a file object
     fname = f.name  #get the file name
   else:  #it's alread the file name
-    fname = f  #if
+    fname = f
 
   if(kwargs['verbose'] == True):
     print("Process catalogue '{0}'.".format(fname))
@@ -251,8 +251,8 @@ if __name__ == "__main__":   # if is the main
       lview.wait( jobs=runs )  #wait for the end
 
     #get the maxima and minima from the computations excluding the None
-    maxi = [r.result[0] for r in runs if r is not None]
-    mini = [r.result[1] for r in runs if r is not None]
+    maxi = [r.result[0] for r in runs if r.result is not None]
+    mini = [r.result[1] for r in runs if r.result is not None]
   #end if: parallel
 
   #compute absolute maximum and minimum

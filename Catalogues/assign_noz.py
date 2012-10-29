@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 #Assign n(z) read from a file
 
+import my_functions as mf
 import numpy as np
 
 def parse(argv):
@@ -54,14 +55,14 @@ def parse(argv):
 
   return p.parse_args(args=argv)  #end def parse(argv)
 
-def assign_noz( f, noz, **kwargs):
+def assign_noz( f, nofz, **kwargs):
   """read file 'f', substitute a columns with noz(z), with z in 'f' itself, and
   save in a file.
   Parameters
   ----------
   f: file object or string
     file containing the catalogue
-  noz: function
+  nofz: function
     returns n(z) for all the z in the input file
   output
   ------
@@ -77,7 +78,7 @@ def assign_noz( f, noz, **kwargs):
   if( type(f) == file ):  #if f is a file object
     fname = f.name  #get the file name
   else:  #it's alread the file name
-    fname = f  #if
+    fname = f
 
   if(kwargs['verbose'] == True):
     print("Process catalogue '{0}'.".format(fname))
@@ -95,22 +96,11 @@ def assign_noz( f, noz, **kwargs):
 
   cat = np.loadtxt( f )  #read the input catalogue
 
-  cat[:,kwargs['nz_column'] = noz( cat[:,opt.zcol] )
-
-  #create the output file name
-  if(opt.force == True):
-    ofile = fn
-  else:
-    if(opt.outsub[0] == ""):
-      ofile = fn+opt.outsub[1]
-    elif(opt.outsub[1] == ""):
-      ofile = opt.outsub[0]+fn
-    else:
-      ofile = fn.replace(opt.outsub[0], opt.outsub[1])
-    if(ofile == fn):   #if the substitution didn't work add outsub[1] at the end of the file name
-      ofile = fn+".out"
+  cat[:,kwargs['nz_column']] = nofz( cat[:,kwargs['z_column']] )
 
   np.savetxt(ofile, cat, fmt="%8.7e", delimiter='\t')
+  return None
+  #end assign_noz( f, noz, **kwargs)
 
 if __name__ == "__main__":   #if it's the main
 
@@ -121,17 +111,40 @@ if __name__ == "__main__":   #if it's the main
   z, noz = np.loadtxt(args.noz, usecols=args.zn_file_col ).T
   #create an interpolation function
   import scipy.interpolate as spi
-  interp_noz = spi.interp1d( z, noz, fill_value=0 ) 
+  #interp_noz = lambda x: np.interp( x, z, noz, left=0, right=0)
+  interp_noz = spi.InterpolatedUnivariateSpline( z, noz ) #, fill_value=0, bounds_error=False ) 
 
   #if parallel computation required, check that Ipython.parallel.Client 
   #is in installed and that the ipycluster has been started
   if args.parallel :
     import ipython_parallel as IPp
     #command to run on all the engines
-    imports = [ 'import numpy as np', ]
+    imports = [ 'import numpy as np', 'import my_functions as mf', ]
     args.parallel, lview = IPp.start_load_balanced_view( to_execute=imports )
 
   #loop through the catalogues and add a columns with n(z)
-  for fn in args[1:]:
+  if( args.parallel == False ):  #if: parallel
+    for fn in args.ifname:  #file name loop
+      #substitute n(z)
+      assign_noz( fn, interp_noz, **vars(args) ) 
+  #run the script using the IPython parallel environment 
+  else:    #if: parallel
+    engines_id = lview.client.ids  #get the id of the engines_id
+    initstatus = lview.queue_status()  #get the initial status
+
+    #submit the jobs and save the list of jobs
+    import os
+    runs = [ lview.apply( assign_noz, os.path.abspath(fn.name), interp_noz, **vars(args) ) 
+      for fn in args.ifname ]
+
+    if args.verbose :   #if some info is required
+      IPp.advancement_jobs( lview, runs, engines_id, update=args.update,
+	  init_status=initstatus )
+    else:   #if no info at all is wanted
+      lview.wait( jobs=runs )  #wait for the end
+
+    #just check for any error
+    results = [r.result for r in runs]
+  #end if: parallel
 
   exit()
