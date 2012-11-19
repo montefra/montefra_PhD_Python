@@ -2,97 +2,186 @@
 # -*- coding: utf-8 -*-
 """rescale the x, y and z positions of object in a catalogue by a given amount """
 
-#import constants as const
-import glob   #allows search of files with unix wildcards
+import my_functions as mf
 import numpy as np
-import optparse as op  #import optsparse: allows nice command line option handling
-import sys
+
+def parse(argv):
+    """
+    This function accept a list of strings, create and fill a parser istance 
+    and return a populated namespace
+
+    Parameters
+    ----------
+    argv: list of strings
+    list to be parsed
+
+    output: namespace
+    ---------
+    """
+
+    import argparse as ap 
+    import argparse_custom as apc
+
+    description = """Subtract from the first three columns of the input files the
+    three floats. If they are not provided they will be computed from the files
+    themselves. """
+
+    p = ap.ArgumentParser(description=description,
+            formatter_class=ap.ArgumentDefaultsHelpFormatter)
+
+    p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'),
+            help="Input file name(s), containing z in one of the columns")
+
+    p = apc.version_verbose( p, '1' )
+
+    p, group = apc.insert_or_replace1(p)
+    p, group = apc.overwrite_or_skip(p)
+
+    p.add_argument("--rescale", action="store", type=float, nargs=3,
+            help="""Values to subtract from the first three columns""")
+    p.add_argument("-o", "--offset", action="store", type=float, default=0,
+            help="""Extra offset to add to 'rescale'""")
+
+    p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+',
+            help="Format of the output files")
+
+    description = """Parameters related to the parallel computation"""
+    p, parallel = apc.parallel_group( p, description=description )
+
+    return p.parse_args(args=argv)  
+#end def parse(argv)
 
 
-def options(p):
-  """
-  This function accept the option parser istance and fill it with options.
+def get_minimum( f ):
+    """Parameters
+    ----------
+    f: file object or string
+        file containing the catalogue
+    output
+    ------
+    mincat: 3 element array
 
-  The version must be set when creating the optparse istance
+    """
+    if( type(f) == file ):  #if f is a file object
+        fname = f.name  #get the file name
+    else:  #it's alread the file name
+        fname = f
 
-  Parameters
-  ----------
-  p: option parser istance
+    return np.loadtxt( f, usecols=[0,1,2] ).min( axis=0 )  
+#end def get_minimum
 
-  output: tuple with the options and the arguments
-  ---------
-  """
+def subtract_fromfile( f, absmin, **kwargs):
+    """read file 'f', subtract absmin+offset from the first three columns and
+    save the file
+    Parameters
+    ----------
+    f: file object or string
+        file containing the catalogue
+    absmin: list or array of three floats
+        values to subtract from the first 3 columns
+    output
+    ------
+    none
 
-  p.set_usage(""" 
-              %prog [options] file_names
-	      Subtract from the positions x,y and z of the object in catalogues 
-	      the desired values, in order to rescale the positions.
-	      They must be in the first three columns of the input file.
-	      'file_names' can be a list and accept also shell wildcards.""")
+    accepted kwargs that affects the function
+    +verbose: verbose mode [True|False] 
+    +replace: replace string *replace[0]* with *replace[1]* in f.name
+    +insert: insert string *insert[0]* before *insert[1]* in f.name
+    +skip: existing file names skipped [True|False]
+    +overwrite: existing file names overwritten [True|False]
+    +offset: extra offset to add to absmin
+    +fmt: format of the output file
+    """
+    if( type(f) == file ):  #if f is a file object
+        fname = f.name  #get the file name
+    else:  #it's alread the file name
+        fname = f
 
-  p.add_option("-v", "--verbose", action="store_true", dest="verb", help="Verbose")
+    if(kwargs['verbose'] == True):
+        print("Process catalogue '{0}'.".format(fname))
 
-  p.add_option("-r", "--rescale", action="store", type=float, nargs=3, dest="resc",
-               help="""If set use those values to rescale the x,y,z otherwise compute absolute 
-minimum from all the input files and use that value""")
+    #create the output file name and check it
+    if(kwargs['replace'] == None):
+        ofile, skip = mf.insert_src(fname, kwargs['insert'],
+        overwrite=kwargs['overwrite'], skip=kwargs['skip'])
+    else:
+        ofile, skip = mf.replace_src(fname, kwargs['replace'],
+        overwrite=kwargs['overwrite'], skip=kwargs['skip'])
+    if(skip == True):
+        print("Skipping file '{0}'".format(fname))
+        return None
 
-  p.add_option("--comments", action="store", dest="comm", default="#",
-	       help="The character used to indicate the start of a comment. [Default: %default]")
-  p.add_option("--delimiter", action="store", dest="deli", 
-               help="The string used to separate values. By default, this is any whitespace.")
-  p.add_option("--skiprow", action="store", dest="skip", type=int, default=0, help="Skip the first 'skiprows' lines. [Default: %default]")
+    cat = np.loadtxt( f )  #read the input catalogue
+    cat[:,:3] -= absmin+kwargs['offset']  #subtract the minimum
 
-  p.add_option("-o", "--outputsub", action="store", dest="outsub", nargs=2, default=["", "out"],
-               help="""Modify the input file name and use it as output file. If outsub[0]="", 
-output[1] added to the end of the input file name, if outsub[1]="", output[0] added at the beginning of the input file name, else substitute outsub[0] with output[1]. [Default: %default]""")
-  p.add_option("-f", "--force-overwrite", action="store_true", default=False, dest="force", help="It forces to overwrite the input file")
-
-  return p.parse_args()
+    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+    return None
+#end def subtract_fromfile
 
 if __name__ == "__main__":   # if is the main
 
-  opt, args = options(op.OptionParser(version="%prog version 0.1"))
+    import sys
+    args = parse(sys.argv[1:])
+    args.rescale = np.array( args.rescale )  #convert to numpy array rescale
 
-  #check the parameters
-  if(opt.outsub[0] == opt.outsub[1]):
-    print("The input and output file must have different names")
-    sys.exit(10)
+    #if parallel computation required, check that Ipython.parallel.Client 
+    #is in installed and that the ipycluster has been started
+    if args.parallel :
+        import os
+        import ipython_parallel as IPp
+        #command to run on all the engines
+        imports = [ 'import numpy as np', 'import my_functions as mf' ]
+        args.parallel, lview = IPp.start_load_balanced_view( to_execute=imports )
 
-  #search for the absolute minimum if not given
-  if(opt.resc == None):
-    print("Finding the absolute maximum and minimum")
-    absmin = np.array([+np.inf,]*3)
-    for arg in args:   #loop through the arguments
-      for fn in glob.iglob(arg):   #loop to the file names associated to each argument. This allows for shell wildcard
-	cat = np.loadtxt(fn, comments=opt.comm, delimiter=opt.deli, skiprows=opt.skip, usecols=(0,1,2))
-	pmin = np.amin(cat, axis=0)
-	absmin = np.amin([absmin,pmin],axis=0) #get absolute maximum and minimum
 
-    print("absolute minimum:", absmin)
-    opt.resc=absmin
+    #search for the absolute minimum if not given
+    if(args.rescale == None):
+        if args.verbose : 
+            print("Finding the absolute maximum and minimum")
+        if( args.parallel == False ):  #if: parallel
+            mincat = []  #store the minima
+            for fn in args.ifname:  #file name loop
+                mincat.append( get_minimum( fn ) )
+        #run the script using the IPython parallel environment 
+        else:    #if: parallel
+            engines_id = lview.client.ids  #get the id of the engines_id
+            initstatus = lview.queue_status()  #get the initial status
+            #submit the jobs and save the list of jobs
+            runs = [ lview.apply( get_minimum, os.path.abspath(fn.name) ) 
+                for fn in args.ifname ]
 
-  #rescale
-  for arg in args:   #loop through the arguments
-    for fn in glob.iglob(arg):   #loop to the file names associated to each argument. This allows for shell wildcard
-      if(opt.verb):
-	print("Processing file:", fn)
-      cat = np.loadtxt(fn, comments=opt.comm, delimiter=opt.deli, skiprows=opt.skip)
+            if args.verbose :   #if some info is required
+                IPp.advancement_jobs( lview, runs, engines_id,
+                    update=args.update, init_status=initstatus )
+            else:   #if no info at all is wanted
+                lview.wait( jobs=runs )  #wait for the end
 
-      cat[:,:3] = cat[:,:3] - opt.resc + 0.01
+            #get the minimum
+            mincat = [r.result for r in runs]
+        #endif: parallel
+        args.rescale = np.min( mincat, axis=0 )  #get the absolute minimum
 
-      #create the output file name
-      if(opt.force == True):
-	ofile = fn
-      else:
-	if(opt.outsub[0] == ""):
-	  ofile = fn+opt.outsub[1]
-	elif(opt.outsub[1] == ""):
-	  ofile = opt.outsub[0]+fn
-	else:
-	  ofile = fn.replace(opt.outsub[0], opt.outsub[1])
-	if(ofile == fn):   #if the substitution didn't work add outsub[1] at the end of the file name
-	  ofile = fn+".out"
+        if args.verbose : 
+            print("Absolute minimum: ", args.rescale)
 
-      np.savetxt(ofile, cat, fmt="%8.7e", delimiter='\t')  #save the new file
+    #rescale
+    if args.verbose : 
+        print("Subtracting the minimum")
+    if( args.parallel == False ):  #if: parallel
+        for fn in args.ifname:  #file name loop
+            subtract_fromfile( fn, args.rescale, **vars(args) )
+    else:    #if: parallel
+        engines_id = lview.client.ids  #get the id of the engines_id
+        initstatus = lview.queue_status()  #get the initial status
+        #submit the jobs and save the list of jobs
+        runs = [ lview.apply( subtract_fromfile, os.path.abspath(fn.name),
+            args.rescale, **vars(args) ) for fn in args.ifname ]
 
-  exit()
+        if args.verbose :   #if some info is required
+            IPp.advancement_jobs( lview, runs, engines_id, update=args.update,
+                init_status=initstatus )
+        else:   #if no info at all is wanted
+            lview.wait( jobs=runs )  #wait for the end
+    #endif: parallel
+
+    exit()
