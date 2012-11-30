@@ -98,7 +98,6 @@ def advancement_jobs( lbview, jobs, enginesid, update=30,
       message = """{0:.1%} done. {1} finished {2} running, {3} pending.""".format( 
         percentage_run, already_run, totrunning , tot_torun ) 
       sio.printer( message )
-    sio.printer( " "*len(message) )
     sio.printer( "Finished" )
   else:
   #end if: advancement status

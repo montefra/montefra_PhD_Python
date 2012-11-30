@@ -42,8 +42,8 @@ def parse(argv):
             formatter_class=ap.ArgumentDefaultsHelpFormatter)
 
     p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'),
-            help="Input file name(s), containing ra and dec in the first two
-            columns")
+            help="""Input file name(s), containing ra and dec in the first two
+            columns""")
 
     p = apc.version_verbose( p, '1' )
 

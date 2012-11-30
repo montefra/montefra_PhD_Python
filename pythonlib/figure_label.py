@@ -16,7 +16,7 @@ class MyFigure( Figure ):
         Figure.__init__(self, *args, **kwargs)
 
     @docstring.dedent_interpd
-    def set_xlabel(self, xlabel, fontdict=None, labelpad=0.05, **kwargs):
+    def set_xlabel(self, xlabel, fontdict=None, labelpad=0.08, **kwargs):
         """
         Call signature::
 
@@ -35,24 +35,32 @@ class MyFigure( Figure ):
 
             :meth:`text`
                 for information on how override and the optional args work
+
+        WARNING: as now it works only if used after all the axes/subplots 
+        have been created and require fine tuning (there is no integration
+        with tight_layout)
         """
         if ('horizontalalignment' not in kwargs) and ('ha' not in kwargs):
             kwargs['horizontalalignment'] = 'center'
         if ('verticalalignment' not in kwargs) and ('va' not in kwargs):
             kwargs['verticalalignment'] = 'bottom'
-	left, bottom, right, up = np.NAN, np.NAN, np.NAN, np.NAN
-	for ax in self.get_axes():
-	    bbox = ax.get_position()
-	    left = min( bbox.xmin, left )
-	    right = max( bbox.xmax, right )
-	    bottom = min( bbox.ymin, bottom )
-	    up = max( bbox.ymax, up )
-	
-	t = self.text( (right+left)/2, bottom-labelpad, xlabel, fontdict=fontdict, **kwargs )
-	return t
+
+        #get the lower and leftmost border of the axes/subplots
+        left, bottom, right, up = np.NAN, np.NAN, np.NAN, np.NAN
+        for ax in self.get_axes():
+            bbox = ax.get_position()
+            left = min( bbox.xmin, left )
+            right = max( bbox.xmax, right )
+            bottom = min( bbox.ymin, bottom )
+            up = max( bbox.ymax, up )
+        
+        #write the xlabel as text below the lowest axes. labelpad should leave enough space
+        #for the default xticklabels
+        t = self.text( (right+left)/2, bottom-labelpad, xlabel, fontdict=fontdict, **kwargs )
+        return t
 
     @docstring.dedent_interpd
-    def set_ylabel(self, ylabel, fontdict=None, labelpad=0.05, **kwargs):
+    def set_ylabel(self, ylabel, fontdict=None, labelpad=0.10, **kwargs):
         """
         Call signature::
 
@@ -71,25 +79,33 @@ class MyFigure( Figure ):
 
             :meth:`text`
                 for information on how override and the optional args work
+
+        WARNING: as now it works only if used after all the axes/subplots 
+        have been created and require fine tuning (there is no integration
+        with tight_layout)
         """
 
-	if( 'rotation' not in kwargs ):   #default rotation
-	    kwargs['rotation'] = 'vertical'
+        if( 'rotation' not in kwargs ):   #default rotation
+            kwargs['rotation'] = 'vertical'
 
-#        if ('horizontalalignment' not in kwargs) and ('ha' not in kwargs):
-#            kwargs['horizontalalignment'] = 'center'
+        if ('horizontalalignment' not in kwargs) and ('ha' not in kwargs):
+            kwargs['horizontalalignment'] = 'left'
         if ('verticalalignment' not in kwargs) and ('va' not in kwargs):
             kwargs['verticalalignment'] = 'center'
-	left, bottom, right, up = np.NAN, np.NAN, np.NAN, np.NAN
-	for ax in self.get_axes():
-	    bbox = ax.get_position()
-	    left = min( bbox.xmin, left )
-	    right = max( bbox.xmax, right )
-	    bottom = min( bbox.ymin, bottom )
-	    up = max( bbox.ymax, up )
-	
-	t = self.text( left-labelpad, (up+bottom)/2, ylabel, fontdict=fontdict, **kwargs )
-	return t
+        
+        #get the lower and leftmost border of the axes/subplots
+        left, bottom, right, up = np.NAN, np.NAN, np.NAN, np.NAN
+        for ax in self.get_axes():
+            bbox = ax.get_position()
+            left = min( bbox.xmin, left )
+            right = max( bbox.xmax, right )
+            bottom = min( bbox.ymin, bottom )
+            up = max( bbox.ymax, up )
+        
+        #write the ylabel as text on the left the leftmost axes. labelpad should leave enough space
+        #for the default yticklabels with one or two digits
+        t = self.text( left-labelpad, (up+bottom)/2, ylabel, fontdict=fontdict, **kwargs )
+        return t
 
 if __name__ == "__main__":
 

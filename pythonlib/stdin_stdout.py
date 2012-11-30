@@ -55,5 +55,5 @@ def printer(data):
   data: 
     what has to go on screen
   """
-  sys.stdout.write("\r\x1b "+data.__str__())
+  sys.stdout.write("\r\x1b[K"+data.__str__())
   sys.stdout.flush()
