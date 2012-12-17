@@ -216,19 +216,9 @@ if __name__ == "__main__":   # if is the main
     #if parallel computation required, check that Ipython.parallel.Client 
     #is in installed and that the ipycluster has been started
     if args.parallel :
-
-        import ipython_parallel as IPp
-        import os
-        #the absolute path and file name of this script
-        path, fname = os.path.split( os.path.abspath(sys.argv[0]) )
-        function_name = 'rdz2xyz'  #name of the function to import
-        #command to run on all the engines
-        imports = [ 'import numpy as np', 'import my_functions as mf',
-            #add the script directory to the python path
-            'import sys', 'sys.path.append("{0}")'.format(path),     
-            #import the desired function in the namespace
-            'from {0} import {1}'.format( os.path.splitext(fname)[0], function_name) ]  
-        args.parallel, lview = IPp.start_load_balanced_view( to_execute=imports )
+        from ipython_parallel import Load_balanced_view as Lbv
+        parallel_env = Lbv()  #initialize the object with all my parallen stuff
+        args.parallel = parallel_env.is_parallel_enabled()
 
     #run the script in serial mode
     if( args.parallel == False ):  #if: parallel
@@ -242,22 +232,37 @@ if __name__ == "__main__":   # if is the main
             mini.append( temp[1] )
     #run the script using the IPython parallel environment 
     else:    #if: parallel
-        engines_id = lview.client.ids  #get the id of the engines_id
-        initstatus = lview.queue_status()  #get the initial status
+        #execute some import on all engines
+        import os
+        #the absolute path and file name of this script
+        path, fname = os.path.split( os.path.abspath(sys.argv[0]) )
+        function_name = 'rdz2xyz'  #name of the function to import
+        #command to run on all the engines
+        imports = [ 'import numpy as np', 'import my_functions as mf',
+            #add the script directory to the python path
+            'import sys', 'sys.path.append("{0}")'.format(path),     
+            #import the desired function in the namespace
+            'from {0} import {1}'.format( os.path.splitext(fname)[0], function_name) ]  
+        parallel_env.exec_on_engine( imports )
+
+        initstatus = parallel_env.get_queue_status()  #get the initial status
 
         #submit the jobs and save the list of jobs
-        runs = [ lview.apply( convert_save, os.path.abspath(fn.name), dis,
-            **vars(args) ) for fn in args.ifname ]
+        runs = [ parallel_env.apply( convert_save, os.path.abspath(fn.name),
+            dis, **vars(args) ) for fn in args.ifname ]
 
         if args.verbose :   #if some info is required
-            IPp.advancement_jobs( lview, runs, engines_id, update=args.update,
+            parallel_env.advancement_jobs( runs, update=args.update,
                     init_status=initstatus )
         else:   #if no info at all is wanted
-            lview.wait( jobs=runs )  #wait for the end
+            parallel_env.wait( jobs=runs )  #wait for the end
 
         #get the maxima and minima from the computations excluding the None
         maxi = [r.result[0] for r in runs if r.result is not None]
         mini = [r.result[1] for r in runs if r.result is not None]
+
+        #clear the variable in the parallel environment to avoid filling up memory
+        parallel_env.clear_cache()  
     #end if: parallel
 
     #compute absolute maximum and minimum

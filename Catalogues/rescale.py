@@ -128,11 +128,13 @@ if __name__ == "__main__":   # if is the main
     #is in installed and that the ipycluster has been started
     if args.parallel :
         import os
-        import ipython_parallel as IPp
-        #command to run on all the engines
-        imports = [ 'import numpy as np', 'import my_functions as mf' ]
-        args.parallel, lview = IPp.start_load_balanced_view( to_execute=imports )
+        from ipython_parallel import Load_balanced_view as Lbv
+        parallel_env = Lbv()  #initialize the object with all my parallen stuff
+        args.parallel = parallel_env.is_parallel_enabled()
 
+    if args.parallel :
+        imports = [ 'import numpy as np', 'import my_functions as mf', ]
+        parallel_env.exec_on_engine( imports )
 
     #search for the absolute minimum if not given
     if(args.rescale == None):
@@ -144,17 +146,16 @@ if __name__ == "__main__":   # if is the main
                 mincat.append( get_minimum( fn ) )
         #run the script using the IPython parallel environment 
         else:    #if: parallel
-            engines_id = lview.client.ids  #get the id of the engines_id
-            initstatus = lview.queue_status()  #get the initial status
+            initstatus = parallel_env.queue_status()  #get the initial status
             #submit the jobs and save the list of jobs
-            runs = [ lview.apply( get_minimum, os.path.abspath(fn.name) ) 
+            runs = [ parallel_env.apply( get_minimum, os.path.abspath(fn.name) ) 
                 for fn in args.ifname ]
 
             if args.verbose :   #if some info is required
-                IPp.advancement_jobs( lview, runs, engines_id,
-                    update=args.update, init_status=initstatus )
+                parallel_env.advancement_jobs( runs, update=args.update,
+                        init_status=initstatus )
             else:   #if no info at all is wanted
-                lview.wait( jobs=runs )  #wait for the end
+                parallel_env.wait( jobs=runs )  #wait for the end
 
             #get the minimum
             mincat = [r.result for r in runs]
@@ -171,17 +172,18 @@ if __name__ == "__main__":   # if is the main
         for fn in args.ifname:  #file name loop
             subtract_fromfile( fn, args.rescale, **vars(args) )
     else:    #if: parallel
-        engines_id = lview.client.ids  #get the id of the engines_id
-        initstatus = lview.queue_status()  #get the initial status
+        initstatus = parallel_env.queue_status()  #get the initial status
         #submit the jobs and save the list of jobs
-        runs = [ lview.apply( subtract_fromfile, os.path.abspath(fn.name),
+        runs = [ parallel_env.apply( subtract_fromfile, os.path.abspath(fn.name),
             args.rescale, **vars(args) ) for fn in args.ifname ]
 
         if args.verbose :   #if some info is required
-            IPp.advancement_jobs( lview, runs, engines_id, update=args.update,
-                init_status=initstatus )
+            parallel_env.advancement_jobs( runs, update=args.update,
+                    init_status=initstatus )
         else:   #if no info at all is wanted
-            lview.wait( jobs=runs )  #wait for the end
+            parallel_env.wait( jobs=runs )  #wait for the end
+        #clear the variable in the parallel environment to avoid filling up memory
+        parallel_env.clear_cache()  
     #endif: parallel
 
     exit()
