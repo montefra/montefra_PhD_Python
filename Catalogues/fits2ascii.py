@@ -1,9 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 #read fits files and save them to ascii tables using 
-#pyfits
+#fitsio by Erin Scheldon. Case sensitive
 
-import pyfits as pf
+import fitsio 
 
 def parse(argv):
     """
@@ -47,6 +47,11 @@ def parse(argv):
             help="""Write the output to file '%(dest)s' instead than to
             stdout. Ignored if '--show-columns' not used.""")
 
+    p.add_argument("-c", "--columns", nargs='+', default=["RA", "DEC", "Z"], help="""Read the given
+            columns. Can be: integer, string and lists. Operations permitted
+            for string entry like 'a+b-1': 'a' and 'b' are column name and '1'
+            a number.""")
+
     p.add_argument("--fmt", action=apc.store_fmt, nargs='+',
             help="Format of the output files.")
 
@@ -77,6 +82,61 @@ def get_fileinfo( fnames, allfiles=False, tofile=None ):
             with fitsio.FITS( fn ) as fits:
                 printto( fits[:] )
 #end def get_fileinfo( fnames, allfiles=False, tofile=None ):
+
+def fits2ascii( f, columns=None, **kwargs ):
+    """
+    read a fits file 'f', or some columns if cols is not None and save the
+    output into an ascii table.  Operations between columns permitted. The
+    output file has the order given in columns
+
+    Signature: 
+        fits2ascii( "file.fits" ) #print the whole file
+        fits2ascii( "file.fits", columns= [0,4,5,3] )  #read and save the given columns (in that order)
+        fits2ascii( "file.fits", columns= ['a', 'b', 'n', 'c'] ) #as before but with column name
+        fits2ascii( "file.fits", columns= ['a', 'b+n-1', 'c'] ) #save a 3 columns ascii table with 'a' in the first,
+        #the result of the fitsio.read_column('b')+fitsio.read_column('n')-1 in the second and 'c' in the third
+
+    Parameters
+    ----------
+    f: file object or string
+        file containing the catalogue
+    columns: None, integer, string, list of integers or strings.
+        columns to read. If None the whole file read and saved to an ascii
+        table (using np.savetxt) If strings, operation permitted: in this case
+        the *name* of the column, *not* the number, must be given
+
+    output
+    ------
+    none
+
+    accepted kwargs that affects the function
+    +verbose: verbose mode [True|False] 
+    +replace: replace string *replace[0]* with *replace[1]* in f.name
+    +insert: insert string *insert[0]* before *insert[1]* in f.name
+    +skip: existing file names skipped [True|False]
+    +overwrite: existing file names overwritten [True|False]
+    +fmt: format of the output file
+    """
+    if( type(f) == file ):  #if f is a file object
+        fname = f.name  #get the file name
+    else:  #it's alread the file name
+        fname = f
+
+    if(kwargs['verbose'] == True):
+        print("Process catalogue '{0}'.".format(fname))
+
+    #create the output file name and check it
+    if(kwargs['replace'] == None):
+        ofile, skip = mf.insert_src(fname, kwargs['insert'],
+            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
+    else:
+        ofile, skip = mf.replace_src(fname, kwargs['replace'],
+            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
+    if(skip == True):
+        print("Skipping file '{0}'".format(fname))
+    return None
+
+
 
 if __name__ == "__main__":   #if it's the main
 
