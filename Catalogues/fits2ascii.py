@@ -28,7 +28,8 @@ def parse(argv):
     p = ap.ArgumentParser(description=description,
             formatter_class=ap.ArgumentDefaultsHelpFormatter)
 
-    p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'),
+    p.add_argument("ifname", nargs='+', type=ap.FileType('r'), 
+            action = apc.close_file,
             help="Input file name(s), containing z in one of the columns")
 
     p = apc.version_verbose( p, '1' )
@@ -134,7 +135,7 @@ def fits2ascii( f, columns=None, **kwargs ):
             overwrite=kwargs['overwrite'], skip=kwargs['skip'])
     if(skip == True):
         print("Skipping file '{0}'".format(fname))
-    return None
+        return None
 
 
 

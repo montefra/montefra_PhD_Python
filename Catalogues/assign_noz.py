@@ -94,7 +94,7 @@ def assign_noz( f, nofz, **kwargs):
             overwrite=kwargs['overwrite'], skip=kwargs['skip'])
     if(skip == True):
         print("Skipping file '{0}'".format(fname))
-    return None
+        return None
 
     cat = np.loadtxt( f )  #read the input catalogue
 
