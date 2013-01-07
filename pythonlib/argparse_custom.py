@@ -181,59 +181,6 @@ def pow2(string):
         msg = "%r is a power of 2" % string
         raise ap.ArgumentTypeError(msg)
 
-class FileExists(object):
-    """
-    Check if the file exists
-    """
-    def __call__(self, parser, args, values, option_string=None):
-        if hasattr(values, '__iter__'):
-            fnames = [f.name for f in values] 
-            [f.close() for f in values]
-        else:
-            fnames = values.name 
-            values.close()
-
-        setattr(namespace, self.dest, fnames)
-
-class FileType(object):
-    """Factory for creating file object types
-
-    Instances of FileType are typically passed as type= arguments to the
-    ArgumentParser add_argument() method.
-
-    Keyword Arguments:
-        - mode -- A string indicating how the file is to be opened. Accepts the
-            same values as the builtin open() function.
-        - bufsize -- The file's desired buffer size. Accepts the same values as
-            the builtin open() function.
-    """
-
-    def __init__(self, mode='r', bufsize=-1):
-        self._mode = mode
-        self._bufsize = bufsize
-
-    def __call__(self, string):
-        # the special argument "-" means sys.std{in,out}
-        if string == '-':
-            if 'r' in self._mode:
-                return _sys.stdin
-            elif 'w' in self._mode:
-                return _sys.stdout
-            else:
-                msg = _('argument "-" with mode %r') % self._mode
-                raise ValueError(msg)
-
-        # all other arguments are used as file names
-        try:
-            return open(string, self._mode, self._bufsize)
-        except IOError as e:
-            message = _("can't open '%s': %s")
-            raise ArgumentTypeError(message % (string, e))
-
-    def __repr__(self):
-        args = self._mode, self._bufsize
-        args_str = ', '.join(repr(arg) for arg in args if arg != -1)
-        return '%s(%s)' % (type(self).__name__, args_str)
 
 # ==========================
 # Action classes and functions
@@ -271,9 +218,47 @@ def required_length(nmin,nmax):
     class RequiredLength(ap.Action):
         def __call__(self, parser, args, values, option_string=None):
             if not nmin<=len(values)<=nmax:
-                msg='argument "{f}" requires between {nmin} and {nmax} arguments'.format(f=self.dest,nmin=nmin,nmax=nmax)
+                msg='''argument "{f}" requires between {nmin} and {nmax}
+                arguments'''.format(f=self.dest,nmin=nmin,nmax=nmax)
                 raise ap.ArgumentTypeError(msg)
             setattr(args, self.dest, values)
     return RequiredLength
 
+def file_exists(warning=False, remove=False):
+    """
+    Check that files exist. Build similarly to argparse.FileType
+
+    Keyword Arguments:
+        - warning -- bool. If *True* throw a warning instead of an error if file
+          does not exists
+        - remove -- bool. If *True* remove the non existing files
+
+    output
+    ------
+    FileExists class
+    """
+    class FileExists(ap.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            # Try to open the file name
+            to_be_removed = [] #list of non existing file names
+            for fn in values:
+                try:
+                    f = open(fn, 'r')
+                # If fails rais and error or just write that the file does not exists
+                # and return its name
+                except IOError as e:
+                    message = "can't open '%s': %s"
+                    if warning is False:
+                        raise ap.ArgumentTypeError(message % (fn, e))
+                    else:
+                        print("File '{0}' does not exists".format(fn))
+                        to_be_removed.append(fn)
+                # If the file exists close it and return its name
+                else:
+                    f.close()
+            if remove is True:  # remove non existing files
+                for tbr in to_be_removed:
+                    values.remove(tbr)
+            setattr(namespace, self.dest, values)
+    return FileExists
 

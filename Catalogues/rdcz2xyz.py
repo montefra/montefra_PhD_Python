@@ -235,15 +235,15 @@ if __name__ == "__main__":   # if is the main
         #execute some import on all engines
         import os
         #the absolute path and file name of this script
-        path, fname = os.path.split( os.path.abspath(sys.argv[0]) )
+        path, fname = os.path.split(os.path.abspath(sys.argv[0]))
         function_name = 'rdz2xyz'  #name of the function to import
         #command to run on all the engines
-        imports = [ 'import numpy as np', 'import my_functions as mf',
+        imports = ['import numpy as np', 'import my_functions as mf',
             #add the script directory to the python path
             'import sys', 'sys.path.append("{0}")'.format(path),     
             #import the desired function in the namespace
-            'from {0} import {1}'.format( os.path.splitext(fname)[0], function_name) ]  
-        parallel_env.exec_on_engine( imports )
+            'from {0} import {1}'.format(os.path.splitext(fname)[0], function_name)]  
+        parallel_env.exec_on_engine(imports)
 
         initstatus = parallel_env.get_queue_status()  #get the initial status
 
