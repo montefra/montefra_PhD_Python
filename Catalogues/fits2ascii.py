@@ -161,7 +161,7 @@ def fits2ascii(fname, selected_columns, operations=None, **kwargs):
     # If there are no operations to perform, open the file, read the columns
     # and save them
     if sum(check_operations) == 0:
-        cat = fitsio.read(fname, columns=selected_columns)
+        cat = fitsio.read(fname, columns=selected_columns)[selected_columns]
     # If there are operations involved
     else:
         with fitsio.FITS(fname) as fits:
@@ -191,7 +191,7 @@ def read_with_operations(fitstable, columns, operations):
         if isinstance(c, (int, long)):  # if the number of the column given
             catalogue.append(fitstable.read_column(c))
         else:  # if it is a string
-            split_on_operators = [s.strip for s in operations.split(c)]
+            split_on_operators = [s.strip() for s in operations.split(c)]
             if len(split_on_operators) == 1:  # no operation required
                 catalogue.append(fitstable[c][:])
             else:  # do the operations
@@ -200,12 +200,12 @@ def read_with_operations(fitstable, columns, operations):
                         if not is_float(col)]
                 # regex for the columns name
                 columns_name_pattern =  \
-                    re.compile("({0})".format("|".join(colname)))
+                    re.compile("({0})".format("|".join(columns_name)))
                 # substitute the column name with the command to read it
-                to_execute = columns_name_pattern.sub(r'fitstable[\1][:]', c)
+                to_execute = columns_name_pattern.sub(r"fitstable['\1'][:]", c)
                 # read the colums and do the operations required
                 catalogue.append(eval(to_execute))
-    return np.array(catalogue) # return the catalogue as numpy array
+    return np.array(catalogue).T # return the catalogue as numpy array
 # end def read_with_operations(fitstable, columns, operations)
 
 def is_float(string):
