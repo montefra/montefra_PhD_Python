@@ -181,6 +181,39 @@ def pow2(string):
         msg = "%r is a power of 2" % string
         raise ap.ArgumentTypeError(msg)
 
+def int_or_list(string):
+    """
+    Check if the input is a int or list of ints
+    Parameters
+    ----------
+    string: string
+        string to parse
+
+    output: list of ints
+        return a list of integers
+    """
+    splitted_string = string.split()
+    return [to_int(ss) for ss in splitted_string]
+
+def to_int(string):
+    """
+    Convert the string into integer. Raise an error if fails
+    Parameters
+    ----------
+    string:
+        input string to evaluate
+
+    output
+    ------
+    integer: int
+    """
+    try:
+        int_string = int(string)
+        return int_string
+    except ValueError:
+        msg = "{0} is not an integer".format(string)
+        raise ap.ArgumentTypeError(msg)
+# end def is_float(string)
 
 # ==========================
 # Action classes and functions
