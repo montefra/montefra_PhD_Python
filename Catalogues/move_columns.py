@@ -27,10 +27,10 @@ def parse(argv):
 
     p = ap.ArgumentParser(description=description, )
 
-    p.add_argument("from", action="store", type=apc.int_or_list, 
+    p.add_argument("from_cols", action="store", type=apc.int_or_list, 
             help="""Column(s) to copy. (if more than one, give them as a string
             of integers separated by spaces)""")
-    p.add_argument("to", action="store", type=apc.int_or_list,
+    p.add_argument("to_cols", action="store", type=apc.int_or_list,
             help="""Where to copy the column(s). (if more than one, give them
             as a string of integers separated by spaces)""")
     p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'),
@@ -53,17 +53,18 @@ def parse(argv):
 
     return p.parse_args(args=argv)
 
-def cselect( f, col, constraint, **kwargs):
-    """read file 'f', substitute a columns with noz(z), with z in 'f' itself, and
-    save in a file.
+def move_columns(f, from_columns, to_columns, **kwargs):
+    """
+    Read file 'f', substitute the content of columns 'to_cols' with the one of
+    'from_cols'
     Parameters
     ----------
     f: file object or string
         file containing the catalogue
-    col: integer
-        column to use for the selection
-    constr: string
-        selection criterion
+    from_columns: list of ints
+        list of columns to copy
+    to_columns: list of ints
+        list of columns where to copy
     output
     ------
     none
@@ -76,71 +77,101 @@ def cselect( f, col, constraint, **kwargs):
     +overwrite: existing file names overwritten [True|False]
     +fmt: format of the output file
     """
-    if( type(f) == file ):  #if f is a file object
-        fname = f.name  #get the file name
-    else:  #it's alread the file name
-        fname = f
+    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
+    cat = np.loadtxt(f)  #read the input catalogue
+
+    cat[:,to_columns] = cat[:,from_columns]
+
+    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
     if(kwargs['verbose'] == True):
-        print("Process catalogue '{0}'.".format(fname))
+        print("File '{0}' saved".format(ofile))
+#end def move_columns(f, from_cols, to_cols, **kwargs):
 
-    #create the output file name and check it
-    if(kwargs['replace'] == None):
-        ofile, skip = mf.insert_src(fname, kwargs['insert'],
-            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    else:
-        ofile, skip = mf.replace_src(fname, kwargs['replace'],
-            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    if(skip == True):
-        print("Skipping file '{0}'".format(fname))
-        return None
+def swap_columns(f, from_columns, to_columns, **kwargs):
+    """
+    Read file 'f', swap the content of columns 'from_cols' with the one of
+    'to_cols'
+    Parameters
+    ----------
+    f: file object or string
+        file containing the catalogue
+    from_columns: list of ints
+        first set of columns
+    to_columns: list of ints
+        second set of columns
+    output
+    ------
+    none
 
-    cat = np.loadtxt( f )  #read the input catalogue
+    accepted kwargs that affects the function
+    +verbose: verbose mode [True|False] 
+    +replace: replace string *replace[0]* with *replace[1]* in f.name
+    +insert: insert string *insert[0]* before *insert[1]* in f.name
+    +skip: existing file names skipped [True|False]
+    +overwrite: existing file names overwritten [True|False]
+    +fmt: format of the output file
+    """
+    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    col = cat[:, col]
-    col = eval( constraint )
+    cat = np.loadtxt(f)  #read the input catalogue
 
-    np.savetxt( ofile, cat[col, :], fmt=kwargs['fmt'], delimiter='\t' )
-    if(args.verbose == True):
-        print( "File '{0}' saved".format(ofile) )
+    # swap the colums
+    temp_from_cols, temp_to_cols = from_columns[:], to_columns[:]
+    temp_from_cols.extend(to_columns)
+    temp_to_cols.extend(from_columns)
+    cat[:,temp_to_cols] = cat[:,temp_from_cols]
 
-    return None
-#end cselect( f, col, constr, **kwargs):
+    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+    if(kwargs['verbose'] == True):
+        print("File '{0}' saved".format(ofile))
+#end def swap_columns(f, from_cols, to_cols, **kwargs):
 
 if __name__ == "__main__":   #if it's the main
 
     import sys
     args = parse(sys.argv[1:])
 
+    if len(args.from_cols) != len(args.to_cols):
+        print("""It is not possible to copy (swap) {0} columns into (with) {1}
+                columns""".format(len(args.from_cols), len(args.to_cols)))
+
     #if parallel computation required, check that Ipython.parallel.Client 
     #is in installed and that the ipycluster has been started
-    if args.parallel :
+    if args.parallel:
         from ipython_parallel import Load_balanced_view as Lbv
         parallel_env = Lbv()  #initialize the object with all my parallen stuff
         args.parallel = parallel_env.is_parallel_enabled()
 
     #loop through the catalogues and add a columns with n(z)
-    if( args.parallel == False ):  #if: parallel
-        for fn in args.ifname:  #file name loop
-            #substitute n(z)
-            cselect( fn, args.column, args.constr, **vars(args) )
+    if(args.parallel == False):  #if: parallel
+        if args.swap:
+            for fn in args.ifname:  #file name loop
+                swap_columns(fn, args.from_cols, args.to_cols, **vars(args))
+        else:
+            for fn in args.ifname:  #file name loop
+                move_columns(fn, args.from_cols, args.to_cols, **vars(args))
     #run the script using the IPython parallel environment 
     else:    #if: parallel
         imports = [ 'import numpy as np', 'import my_functions as mf', ]
-        parallel_env.exec_on_engine( imports )
+        parallel_env.exec_on_engine(imports)
 
-        initstatus = parallel_env.queue_status()  #get the initial status
+        initstatus = parallel_env.get_queue_status()  #get the initial status
 
         #submit the jobs and save the list of jobs
         import os
-        runs = [ parallel_env.apply( cselect, os.path.abspath(fn.name), args.column,
-            args.constr, **vars(args) ) for fn in args.ifname ]
+        if args.swap:
+            runs = [parallel_env.apply( swap_columns, os.path.abspath(fn.name),
+                args.from_cols, args.to_cols, **vars(args)) for fn in args.ifname]
+        else:
+            runs = [parallel_env.apply( move_columns, os.path.abspath(fn.name),
+                args.from_cols, args.to_cols, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
-            parallel_env.advancement_jobs( runs, update=args.update,
-                    init_status=initstatus )
+            parallel_env.advancement_jobs(runs, update=args.update,
+                    init_status=initstatus)
         else:   #if no info at all is wanted
-            parallel_env.wait( jobs=runs )  #wait for the end
+            parallel_env.wait(jobs=runs)  #wait for the end
 
         #just check for any error
         results = [r.result for r in runs]

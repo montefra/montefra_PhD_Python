@@ -129,19 +129,7 @@ def fits2ascii(fname, selected_columns, operations=None, **kwargs):
     +overwrite: existing file names overwritten [True|False]
     +fmt: format of the output file
     """
-    if(kwargs['verbose'] == True):
-        print("Process catalogue '{0}'.".format(fname))
-
-    # create the output file name and check it
-    if(kwargs['replace'] == None):
-        ofile, skip = mf.insert_src(fname, kwargs['insert'],
-            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    else:
-        ofile, skip = mf.replace_src(fname, kwargs['replace'],
-            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    if(skip == True):
-        print("Skipping file '{0}'".format(fname))
-        return None
+    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     # check if there are operations to execute
     check_operations = []
@@ -257,13 +245,14 @@ if __name__ == "__main__":
         import os
         # the absolute path and file name of this script
         path, fname = os.path.split(os.path.abspath(sys.argv[0]))
-        function_name = 'read_with_operations'  # name of the function to import
+        module = os.path.splitext(fname)[0]
         # command to run on all the engines
         imports = ['import numpy as np', 'import my_functions as mf',
             # add this script directory to the python path
             'import sys', 'sys.path.append("{0}")'.format(path),     
-            # import the desired function in the namespace
-            'from {0} import {1}'.format(os.path.splitext(fname)[0], function_name)]
+            # import the functions in this file in the namespace
+            'from {0} import {1}'.format(module, 'read_with_operations'),
+            'from {0} import {1}'.format(module, 'is_float')]
         parallel_env.exec_on_engine(imports)
 
         initstatus = parallel_env.get_queue_status()  #get the initial status

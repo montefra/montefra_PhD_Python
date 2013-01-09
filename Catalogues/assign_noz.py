@@ -77,28 +77,11 @@ def assign_noz( f, nofz, **kwargs):
     +overwrite: existing file names overwritten [True|False]
     +fmt: format of the output file
     """
-    if( type(f) == file ):  #if f is a file object
-        fname = f.name  #get the file name
-    else:  #it's alread the file name
-        fname = f
+    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    if(kwargs['verbose'] == True):
-        print("Process catalogue '{0}'.".format(fname))
+    cat = np.loadtxt(f)  #read the input catalogue
 
-    #create the output file name and check it
-    if(kwargs['replace'] == None):
-        ofile, skip = mf.insert_src(fname, kwargs['insert'],
-            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    else:
-        ofile, skip = mf.replace_src(fname, kwargs['replace'],
-            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    if(skip == True):
-        print("Skipping file '{0}'".format(fname))
-        return None
-
-    cat = np.loadtxt( f )  #read the input catalogue
-
-    cat[:,kwargs['nz_column']] = nofz( cat[:,kwargs['z_column']] )
+    cat[:,kwargs['nz_column']] = nofz(cat[:,kwargs['z_column']])
 
     np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
     return None

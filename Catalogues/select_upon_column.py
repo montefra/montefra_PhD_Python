@@ -1,6 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-"""Read one or more files and extract a part of the file according to the constraints given for a column"""
+"""
+Read one or more files and extract a part of the file according to the
+constraints given for a column
+"""
 
 import my_functions as mf
 import numpy as np
@@ -34,7 +37,7 @@ def parse(argv):
     p.add_argument("column", action="store", type=int, help="Column to check")
     p.add_argument("constr", action="store", 
         help="""Constraints to be applied to the desired column""")
-    p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'), 
+    p.add_argument("ifname", nargs='+', action=apc.file_exists(),
         help="Input file name(s), containing ra and dec in the first two columns")
 
     p = apc.version_verbose( p, '0.1' )
@@ -46,18 +49,18 @@ def parse(argv):
         help="Format of the output files. (default: %(default)s)")
 
     description = """Parameters related to the parallel computation"""
-    p, parallel = apc.parallel_group( p, description=description )
+    p, parallel = apc.parallel_group(p, description=description)
 
     return p.parse_args(args=argv)
 
-def cselect( f, col, constraint, **kwargs):
+def cselect( f, n_col, constraint, **kwargs):
     """read file 'f', substitute a columns with noz(z), with z in 'f' itself, and
     save in a file.
     Parameters
     ----------
     f: file object or string
         file containing the catalogue
-    col: integer
+    n_col: integer
         column to use for the selection
     constr: string
         selection criterion
@@ -73,37 +76,24 @@ def cselect( f, col, constraint, **kwargs):
     +overwrite: existing file names overwritten [True|False]
     +fmt: format of the output file
     """
-    if( type(f) == file ):  #if f is a file object
-        fname = f.name  #get the file name
-    else:  #it's alread the file name
-        fname = f
+    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    if(kwargs['verbose'] == True):
-        print("Process catalogue '{0}'.".format(fname))
+    with open(f, 'r') as infile, open(ofile, 'w') as outfile:
+        for line in infile:
+            col = float(line.split()[n_col].strip())  # get the desired value
+            if eval(constraint):  # if constraint matched
+                outfile.write(line)  # print the line in the output file
 
-    #create the output file name and check it
-    if(kwargs['replace'] == None):
-        ofile, skip = mf.insert_src(fname, kwargs['insert'],
-            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    else:
-        ofile, skip = mf.replace_src(fname, kwargs['replace'],
-            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    if(skip == True):
-        print("Skipping file '{0}'".format(fname))
-        return None
-
-    cat = np.loadtxt( f )  #read the input catalogue
-
-    col = cat[:, col]
-    col = eval( constraint )
-
-    np.savetxt( ofile, cat[col, :], fmt=kwargs['fmt'], delimiter='\t' )
-
-    return None
+#    cat = np.loadtxt(f)  #read the input catalogue
+#
+#    col = cat[:, col]
+#    col = eval(constraint)
+#    cat = cat[col,:]
+#    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+#    if(kwargs['verbose'] == True):
+#        print("File '{0}' saved".format(ofile))
+#    del cat
 #end cselect( f, col, constr, **kwargs):
-
-    if(args.verbose == True):
-        print( "File '{0}' saved".format(ofile) )
 
 if __name__ == "__main__":   #if it's the main
 
@@ -118,27 +108,27 @@ if __name__ == "__main__":   #if it's the main
         args.parallel = parallel_env.is_parallel_enabled()
 
     #loop through the catalogues and add a columns with n(z)
-    if( args.parallel == False ):  #if: parallel
+    if(args.parallel == False):  #if: parallel
         for fn in args.ifname:  #file name loop
             #substitute n(z)
-            cselect( fn, args.column, args.constr, **vars(args) )
+            cselect(fn, args.column, args.constr, **vars(args))
     #run the script using the IPython parallel environment 
     else:    #if: parallel
-        imports = [ 'import numpy as np', 'import my_functions as mf', ]
-        parallel_env.exec_on_engine( imports )
+        imports = ['import numpy as np', 'import my_functions as mf',]
+        parallel_env.exec_on_engine(imports)
 
-        initstatus = parallel_env.queue_status()  #get the initial status
+        initstatus = parallel_env.get_queue_status()  #get the initial status
 
         #submit the jobs and save the list of jobs
         import os
-        runs = [ parallel_env.apply( cselect, os.path.abspath(fn.name), args.column,
-            args.constr, **vars(args) ) for fn in args.ifname ]
+        runs = [parallel_env.apply(cselect, os.path.abspath(fn.name), args.column,
+            args.constr, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
-            parallel_env.advancement_jobs( runs, update=args.update,
-                    init_status=initstatus )
+            parallel_env.advancement_jobs(runs, update=args.update,
+                    init_status=initstatus)
         else:   #if no info at all is wanted
-            parallel_env.wait( jobs=runs )  #wait for the end
+            parallel_env.wait(jobs=runs)  #wait for the end
 
         #just check for any error
         results = [r.result for r in runs]

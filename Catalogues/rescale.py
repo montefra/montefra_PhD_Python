@@ -92,24 +92,7 @@ def subtract_fromfile( f, absmin, **kwargs):
     +offset: extra offset to add to absmin
     +fmt: format of the output file
     """
-    if( type(f) == file ):  #if f is a file object
-        fname = f.name  #get the file name
-    else:  #it's alread the file name
-        fname = f
-
-    if(kwargs['verbose'] == True):
-        print("Process catalogue '{0}'.".format(fname))
-
-    #create the output file name and check it
-    if(kwargs['replace'] == None):
-        ofile, skip = mf.insert_src(fname, kwargs['insert'],
-        overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    else:
-        ofile, skip = mf.replace_src(fname, kwargs['replace'],
-        overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    if(skip == True):
-        print("Skipping file '{0}'".format(fname))
-        return None
+    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     cat = np.loadtxt( f )  #read the input catalogue
     cat[:,:3] -= absmin+kwargs['offset']  #subtract the minimum
@@ -146,21 +129,21 @@ if __name__ == "__main__":   # if is the main
                 mincat.append( get_minimum( fn ) )
         #run the script using the IPython parallel environment 
         else:    #if: parallel
-            initstatus = parallel_env.queue_status()  #get the initial status
+            initstatus = parallel_env.get_queue_status()  #get the initial status
             #submit the jobs and save the list of jobs
-            runs = [ parallel_env.apply( get_minimum, os.path.abspath(fn.name) ) 
-                for fn in args.ifname ]
+            runs = [parallel_env.apply( get_minimum, os.path.abspath(fn.name) ) 
+                for fn in args.ifname]
 
             if args.verbose :   #if some info is required
-                parallel_env.advancement_jobs( runs, update=args.update,
-                        init_status=initstatus )
+                parallel_env.advancement_jobs(runs, update=args.update,
+                        init_status=initstatus)
             else:   #if no info at all is wanted
-                parallel_env.wait( jobs=runs )  #wait for the end
+                parallel_env.wait(jobs=runs)  #wait for the end
 
             #get the minimum
             mincat = [r.result for r in runs]
         #endif: parallel
-        args.rescale = np.min( mincat, axis=0 )  #get the absolute minimum
+        args.rescale = np.min(mincat, axis=0)  #get the absolute minimum
 
         if args.verbose : 
             print("Absolute minimum: ", args.rescale)
@@ -170,18 +153,18 @@ if __name__ == "__main__":   # if is the main
         print("Subtracting the minimum")
     if( args.parallel == False ):  #if: parallel
         for fn in args.ifname:  #file name loop
-            subtract_fromfile( fn, args.rescale, **vars(args) )
+            subtract_fromfile(fn, args.rescale, **vars(args))
     else:    #if: parallel
-        initstatus = parallel_env.queue_status()  #get the initial status
+        initstatus = parallel_env.get_queue_status()  #get the initial status
         #submit the jobs and save the list of jobs
-        runs = [ parallel_env.apply( subtract_fromfile, os.path.abspath(fn.name),
-            args.rescale, **vars(args) ) for fn in args.ifname ]
+        runs = [parallel_env.apply(subtract_fromfile, os.path.abspath(fn.name),
+            args.rescale, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
-            parallel_env.advancement_jobs( runs, update=args.update,
-                    init_status=initstatus )
+            parallel_env.advancement_jobs(runs, update=args.update,
+                    init_status=initstatus)
         else:   #if no info at all is wanted
-            parallel_env.wait( jobs=runs )  #wait for the end
+            parallel_env.wait(jobs=runs)  #wait for the end
         #clear the variable in the parallel environment to avoid filling up memory
         parallel_env.clear_cache()  
     #endif: parallel

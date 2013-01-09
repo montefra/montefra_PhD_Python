@@ -107,3 +107,43 @@ def replace_src(src, replace, overwrite=False, skip=False):
 	print("Aborting")
 	sys.exit(10)
   return ostr, toskip
+
+def create_ofile_name(f, **kwargs):
+    """
+    Create a file name out of the name (of) 'f' substituting or inserting.
+    Is uses "insert_src" and "replace_src"
+    Parameters
+    ----------
+    f: file object or string
+        file containing the catalogue
+    output
+    ------
+    ofile: string
+        output file name or *None*, if *skip* is *True* and ofile alread exists 
+
+    accepted kwargs that affects the function
+    +verbose: verbose mode [True|False] 
+    +replace: replace string *replace[0]* with *replace[1]* in f.name
+    +insert: insert string *insert[0]* before *insert[1]* in f.name
+    +skip: existing file names skipped [True|False]
+    +overwrite: existing file names overwritten [True|False]
+    """
+    if( type(f) == file ):  #if f is a file object
+        fname = f.name  #get the file name
+    else:  #it's alread the file name
+        fname = f
+
+    if(kwargs['verbose'] == True):
+        print("Process catalogue '{0}'.".format(fname))
+
+    #create the output file name and check it
+    if(kwargs['replace'] == None):
+        ofile, skip = insert_src(fname, kwargs['insert'],
+            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
+    else:
+        ofile, skip = replace_src(fname, kwargs['replace'],
+            overwrite=kwargs['overwrite'], skip=kwargs['skip'])
+    if(skip == True):
+        print("Skipping file '{0}'".format(fname))
+        return None
+    return ofile

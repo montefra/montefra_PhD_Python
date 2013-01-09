@@ -165,24 +165,7 @@ def convert_save(f, distance, **kwargs ):
     dec and redshift
     +fmt: format of the output file
     """
-    if( type(f) == file ):  #if f is a file object
-        fname = f.name  #get the file name
-    else:  #it's alread the file name
-        fname = f
-
-    if(kwargs['verbose'] == True):
-        print("Process catalogue '{0}'.".format(fname))
-
-    #create the output file name and check it
-    if(kwargs['replace'] == None):
-        ofile, skip = mf.insert_src(fname, kwargs['insert'],
-        overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    else:
-        ofile, skip = mf.replace_src(fname, kwargs['replace'],
-        overwrite=kwargs['overwrite'], skip=kwargs['skip'])
-    if(skip == True):
-        print("Skipping file '{0}'".format(fname))
-        return None
+    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     cat = np.loadtxt( f, usecols=kwargs['usecols'] )  #read the input catalogu
 
@@ -221,15 +204,15 @@ if __name__ == "__main__":   # if is the main
         args.parallel = parallel_env.is_parallel_enabled()
 
     #run the script in serial mode
-    if( args.parallel == False ):  #if: parallel
+    if(args.parallel == False):  #if: parallel
         #initialise the list of maxima and minima in the output file
         maxi, mini = [], []
         for fn in args.ifname:  #file name loop
             #convert the coordinates and return maxima and minima
             temp = convert_save(fn, dis, **vars(args) ) 
-        if( temp != None ):
-            maxi.append( temp[0] )
-            mini.append( temp[1] )
+        if(temp != None):
+            maxi.append(temp[0])
+            mini.append(temp[1])
     #run the script using the IPython parallel environment 
     else:    #if: parallel
         #execute some import on all engines
@@ -248,12 +231,12 @@ if __name__ == "__main__":   # if is the main
         initstatus = parallel_env.get_queue_status()  #get the initial status
 
         #submit the jobs and save the list of jobs
-        runs = [ parallel_env.apply( convert_save, os.path.abspath(fn.name),
-            dis, **vars(args) ) for fn in args.ifname ]
+        runs = [parallel_env.apply( convert_save, os.path.abspath(fn.name),
+            dis, **vars(args) ) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
-            parallel_env.advancement_jobs( runs, update=args.update,
-                    init_status=initstatus )
+            parallel_env.advancement_jobs(runs, update=args.update,
+                    init_status=initstatus)
         else:   #if no info at all is wanted
             parallel_env.wait( jobs=runs )  #wait for the end
 
@@ -269,13 +252,13 @@ if __name__ == "__main__":   # if is the main
     absmax = np.max( maxi, axis=0)
     absmin = np.min( mini, axis=0)
 
-    maxstring_lenght = len("Difference" )
+    maxstring_lenght = len("Difference")
     string_template = "{:<{}}  "+"  ".join(["{:^9}",]*3)
     float_template = "{:<{}}: "+", ".join(["{:>+9.3f}",]*3)
 
-    print string_template.format( " ", maxstring_lenght, "x", "y", "z" )
-    print float_template.format( "Maximun", maxstring_lenght, *absmax )
-    print float_template.format( "Minimum", maxstring_lenght, *absmin )
-    print float_template.format( "Difference", maxstring_lenght, *absmax-absmin )
+    print string_template.format(" ", maxstring_lenght, "x", "y", "z")
+    print float_template.format("Maximun", maxstring_lenght, *absmax)
+    print float_template.format("Minimum", maxstring_lenght, *absmin)
+    print float_template.format("Difference", maxstring_lenght, *absmax-absmin)
 
     exit()
