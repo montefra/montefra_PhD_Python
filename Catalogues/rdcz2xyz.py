@@ -11,6 +11,8 @@ x	y	z	w	bias	n(x,y,z)	n_b(z)	M	redfhist
 #import constants as const
 import my_functions as mf
 import numpy as np
+import pandas as pd
+from memory_profiler import profile
 
 def parse(argv):
     """
@@ -137,6 +139,7 @@ def rdz2xyz(rdz, dis):
     return xyz   
 #end def rdz2xyz(rdz, dis):
 
+@profile
 def convert_save(f, distance, **kwargs ):
     """
     Read file *f*, converts ra, dec, z into cartesian coordinates, computing the
@@ -167,7 +170,8 @@ def convert_save(f, distance, **kwargs ):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = np.loadtxt( f, usecols=kwargs['usecols'] )  #read the input catalogu
+    cat = np.array(pd.read_table(f, usecols=kwargs['usecols'], header=None)) # read the input catalogue
+    #cat = np.loadtxt( f, usecols=kwargs['usecols'] )  #read the input catalogu
 
     out = np.ones((cat.shape[0], 9))   #create the output catalogue
 
@@ -179,7 +183,7 @@ def convert_save(f, distance, **kwargs ):
 
     out[:,:3] = rdz2xyz(np.copy(cat[:,:3]), distance)   #convert ra, dec, red in x,y,z in Mpc/h
 
-    #save the converted catalogue
+    # save the converted catalogue
     np.savetxt(ofile, out, fmt=kwargs['fmt'], delimiter='\t')
 
     #return the max and minimum
@@ -222,10 +226,11 @@ if __name__ == "__main__":   # if is the main
         function_name = 'rdz2xyz'  #name of the function to import
         #command to run on all the engines
         imports = ['import numpy as np', 'import my_functions as mf',
-            #add the script directory to the python path
-            'import sys', 'sys.path.append("{0}")'.format(path),     
-            #import the desired function in the namespace
-            'from {0} import {1}'.format(os.path.splitext(fname)[0], function_name)]  
+                'import pandas as pd',
+                #add the script directory to the python path
+                'import sys', 'sys.path.append("{0}")'.format(path),     
+                #import the desired function in the namespace
+                'from {0} import {1}'.format(os.path.splitext(fname)[0], function_name)]  
         parallel_env.exec_on_engine(imports)
 
         initstatus = parallel_env.get_queue_status()  #get the initial status
