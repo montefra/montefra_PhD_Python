@@ -83,17 +83,17 @@ def cselect( f, n_col, constraint, **kwargs):
             col = float(line.split()[n_col].strip())  # get the desired value
             if eval(constraint):  # if constraint matched
                 outfile.write(line)  # print the line in the output file
+                outfile.flush()
 
 #    cat = np.loadtxt(f)  #read the input catalogue
 #
-#    col = cat[:, col]
+#    col = cat[:, n_col]
 #    col = eval(constraint)
 #    cat = cat[col,:]
 #    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
 #    if(kwargs['verbose'] == True):
 #        print("File '{0}' saved".format(ofile))
-#    del cat
-#end cselect( f, col, constr, **kwargs):
+##end cselect( f, col, constr, **kwargs):
 
 if __name__ == "__main__":   #if it's the main
 
