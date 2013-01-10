@@ -7,6 +7,7 @@ constraints given for a column
 
 import my_functions as mf
 import numpy as np
+import pandas as pd
 
 def parse(argv):
     """
@@ -40,7 +41,7 @@ def parse(argv):
     p.add_argument("ifname", nargs='+', action=apc.file_exists(),
         help="Input file name(s), containing ra and dec in the first two columns")
 
-    p = apc.version_verbose( p, '0.1' )
+    p = apc.version_verbose( p, '1.0' )
 
     p, group = apc.insert_or_replace1(p, print_def=True)
     p, group = apc.overwrite_or_skip(p)
@@ -53,7 +54,7 @@ def parse(argv):
 
     return p.parse_args(args=argv)
 
-def cselect( f, n_col, constraint, **kwargs):
+def cselect(f, n_col, constraint, **kwargs):
     """read file 'f', substitute a columns with noz(z), with z in 'f' itself, and
     save in a file.
     Parameters
@@ -78,19 +79,9 @@ def cselect( f, n_col, constraint, **kwargs):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    with open(f, 'r') as infile, open(ofile, 'w') as outfile:
-        for line in infile:
-            col = float(line.split()[n_col].strip())  # get the desired value
-            if eval(constraint):  # if constraint matched
-                outfile.write(line)  # print the line in the output file
-                outfile.flush()
-
-#    cat = np.loadtxt(f)  #read the input catalogue
-#
-#    col = cat[:, n_col]
-#    col = eval(constraint)
-#    cat = cat[col,:]
-#    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+    cat = pd.read_table(f, header=None)
+    col = cat[n_col]
+    np.savetxt(ofile, cat[eval(constraint)], fmt=kwargs['fmt'], delimiter='\t')
 #    if(kwargs['verbose'] == True):
 #        print("File '{0}' saved".format(ofile))
 ##end cselect( f, col, constr, **kwargs):
@@ -114,7 +105,8 @@ if __name__ == "__main__":   #if it's the main
             cselect(fn, args.column, args.constr, **vars(args))
     #run the script using the IPython parallel environment 
     else:    #if: parallel
-        imports = ['import numpy as np', 'import my_functions as mf',]
+        imports = ['import numpy as np', 'import my_functions as mf', 
+                "import pandas as pd"]
         parallel_env.exec_on_engine(imports)
 
         initstatus = parallel_env.get_queue_status()  #get the initial status
