@@ -12,7 +12,6 @@ x	y	z	w	bias	n(x,y,z)	n_b(z)	M	redfhist
 import my_functions as mf
 import numpy as np
 import pandas as pd
-from memory_profiler import profile
 
 def parse(argv):
     """
@@ -139,7 +138,6 @@ def rdz2xyz(rdz, dis):
     return xyz   
 #end def rdz2xyz(rdz, dis):
 
-@profile
 def convert_save(f, distance, **kwargs ):
     """
     Read file *f*, converts ra, dec, z into cartesian coordinates, computing the
@@ -214,9 +212,9 @@ if __name__ == "__main__":   # if is the main
         for fn in args.ifname:  #file name loop
             #convert the coordinates and return maxima and minima
             temp = convert_save(fn, dis, **vars(args) ) 
-        if(temp != None):
-            maxi.append(temp[0])
-            mini.append(temp[1])
+            if(temp != None):
+                maxi.append(temp[0])
+                mini.append(temp[1])
     #run the script using the IPython parallel environment 
     else:    #if: parallel
         #execute some import on all engines
