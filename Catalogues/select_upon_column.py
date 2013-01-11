@@ -39,7 +39,7 @@ def parse(argv):
     p.add_argument("constr", action="store", 
         help="""Constraints to be applied to the desired column""")
     p.add_argument("ifname", nargs='+', action=apc.file_exists(),
-        help="Input file name(s), containing ra and dec in the first two columns")
+        help="Input file name(s)")
 
     p = apc.version_verbose( p, '1.0' )
 

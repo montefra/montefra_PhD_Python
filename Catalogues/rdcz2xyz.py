@@ -12,7 +12,7 @@ x	y	z	w	bias	n(x,y,z)	n_b(z)	M	redfhist
 import my_functions as mf
 import numpy as np
 import pandas as pd
-from memory_profiler import profile
+#from memory_profiler import profile
 
 def parse(argv):
     """
@@ -43,7 +43,7 @@ def parse(argv):
     p = ap.ArgumentParser(description=description,
             formatter_class=ap.ArgumentDefaultsHelpFormatter)
 
-    p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'),
+    p.add_argument("ifname", nargs='+', action=apc.file_exists(),
             help="""Input file name(s), containing ra and dec in the first two
             columns""")
 
@@ -139,7 +139,7 @@ def rdz2xyz(rdz, dis):
     return xyz   
 #end def rdz2xyz(rdz, dis):
 
-@profile
+#@profile
 def convert_save(f, distance, **kwargs ):
     """
     Read file *f*, converts ra, dec, z into cartesian coordinates, computing the
