@@ -39,7 +39,7 @@ def parse(argv):
     p.add_argument("constr", action="store", 
         help="""Constraints to be applied to the desired column""")
     p.add_argument("ifname", nargs='+', action=apc.file_exists(),
-        help="Input file name(s), containing ra and dec in the first two columns")
+        help="Input file name(s)")
 
     p = apc.version_verbose( p, '1.0' )
 
@@ -79,7 +79,8 @@ def cselect(f, n_col, constraint, **kwargs):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = pd.read_table(f, header=None)
+    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f))
+
     col = cat[n_col]
     np.savetxt(ofile, cat[eval(constraint)], fmt=kwargs['fmt'], delimiter='\t')
 #    if(kwargs['verbose'] == True):
@@ -113,7 +114,7 @@ if __name__ == "__main__":   #if it's the main
 
         #submit the jobs and save the list of jobs
         import os
-        runs = [parallel_env.apply(cselect, os.path.abspath(fn.name), args.column,
+        runs = [parallel_env.apply(cselect, os.path.abspath(fn), args.column,
             args.constr, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required

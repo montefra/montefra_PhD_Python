@@ -2,6 +2,7 @@
 """Container of misc functions"""
 
 import numpy as np
+import re
 import sys
 
 def convert2array(a):
@@ -128,9 +129,10 @@ def create_ofile_name(f, **kwargs):
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
     """
-    if( type(f) == file ):  #if f is a file object
-        fname = f.name  #get the file name
-    else:  #it's alread the file name
+
+    try:
+        fname = f.name
+    except AttributeError:
         fname = f
 
     if(kwargs['verbose'] == True):
@@ -147,3 +149,40 @@ def create_ofile_name(f, **kwargs):
         print("Skipping file '{0}'".format(fname))
         return None
     return ofile
+
+def n_lines_comments(f, comment='#'):
+    """
+    Count the number of lines starting with a comment at the beginning of the file.
+    The function returns at the first non commented line
+    Parameters
+    ----------
+    f: file object or string
+        file to check
+    comment: string
+        comment character
+    output
+    ------
+    n_lines: int
+        number of lines starting with the comment
+    """
+    def search_commented_lines(fo, c):
+        "f: file object; c: character"
+        n_lines = 0
+        pattern = re.compile("^\s*{0}".format(c))
+        for l in fo:
+            if pattern.search(l) is None:
+                break
+            else:
+                n_lines += 1
+        return n_lines
+
+    try:   # if it is a file name
+        with open(f, 'r') as fo:  # open it and read up to the end of the comments
+            return search_commented_lines(fo, comment)
+    except TypeError: # if it is a file object
+        initial_position = f.tell()  # get the current file position
+        f.seek(0)  # go back to the beginning of the file
+        n_lines = search_commented_lines(f, comment)
+        f.seek(initial_position) # put back the file in the previous position
+        return n_lines
+

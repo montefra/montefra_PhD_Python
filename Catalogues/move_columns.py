@@ -6,6 +6,7 @@ Move or swap some column in a (list of) file(s)
 
 import my_functions as mf
 import numpy as np
+import pandas as pd
 
 def parse(argv):
     """
@@ -79,9 +80,9 @@ def move_columns(f, from_columns, to_columns, **kwargs):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = np.loadtxt(f)  #read the input catalogue
+    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f)) 
 
-    cat[:,to_columns] = cat[:,from_columns]
+    cat[to_columns] = cat[from_columns]
 
     np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
     if(kwargs['verbose'] == True):
@@ -114,16 +115,16 @@ def swap_columns(f, from_columns, to_columns, **kwargs):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = np.loadtxt(f)  #read the input catalogue
+    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f)) 
 
     # swap the colums
     temp_from_cols, temp_to_cols = from_columns[:], to_columns[:]
     temp_from_cols.extend(to_columns)
     temp_to_cols.extend(from_columns)
-    cat[:,temp_to_cols] = cat[:,temp_from_cols]
+    cat[temp_to_cols] = cat[temp_from_cols]
 
     np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
-    if(kwargs['verbose'] == True):
+    if kwargs['verbose'] == True:
         print("File '{0}' saved".format(ofile))
 #end def swap_columns(f, from_cols, to_cols, **kwargs):
 
@@ -153,7 +154,8 @@ if __name__ == "__main__":   #if it's the main
                 move_columns(fn, args.from_cols, args.to_cols, **vars(args))
     #run the script using the IPython parallel environment 
     else:    #if: parallel
-        imports = [ 'import numpy as np', 'import my_functions as mf', ]
+        imports = [ 'import numpy as np', 'import my_functions as mf', 
+                'import pandas as pd']
         parallel_env.exec_on_engine(imports)
 
         initstatus = parallel_env.get_queue_status()  #get the initial status
@@ -161,10 +163,10 @@ if __name__ == "__main__":   #if it's the main
         #submit the jobs and save the list of jobs
         import os
         if args.swap:
-            runs = [parallel_env.apply( swap_columns, os.path.abspath(fn.name),
+            runs = [parallel_env.apply( swap_columns, os.path.abspath(fn),
                 args.from_cols, args.to_cols, **vars(args)) for fn in args.ifname]
         else:
-            runs = [parallel_env.apply( move_columns, os.path.abspath(fn.name),
+            runs = [parallel_env.apply( move_columns, os.path.abspath(fn),
                 args.from_cols, args.to_cols, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
