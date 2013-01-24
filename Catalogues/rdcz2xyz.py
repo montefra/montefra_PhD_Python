@@ -170,8 +170,8 @@ def convert_save(f, distance, **kwargs ):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = np.array(pd.read_table(f, usecols=kwargs['usecols'], header=None)) # read the input catalogue
-    #cat = np.loadtxt( f, usecols=kwargs['usecols'] )  #read the input catalogu
+    cat = np.array(pd.read_table(f, usecols=kwargs['usecols'], header=None,
+        skiprows=mf.n_lines_comments(f))) # read the input catalogue
 
     out = np.ones((cat.shape[0], 9))   #create the output catalogue
 
@@ -214,9 +214,9 @@ if __name__ == "__main__":   # if is the main
         for fn in args.ifname:  #file name loop
             #convert the coordinates and return maxima and minima
             temp = convert_save(fn, dis, **vars(args) ) 
-        if(temp != None):
-            maxi.append(temp[0])
-            mini.append(temp[1])
+            if(temp != None):
+                maxi.append(temp[0])
+                mini.append(temp[1])
     #run the script using the IPython parallel environment 
     else:    #if: parallel
         #execute some import on all engines
@@ -236,8 +236,8 @@ if __name__ == "__main__":   # if is the main
         initstatus = parallel_env.get_queue_status()  #get the initial status
 
         #submit the jobs and save the list of jobs
-        runs = [parallel_env.apply( convert_save, os.path.abspath(fn.name),
-            dis, **vars(args) ) for fn in args.ifname]
+        runs = [parallel_env.apply(convert_save, os.path.abspath(fn),
+            dis, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
             parallel_env.advancement_jobs(runs, update=args.update,

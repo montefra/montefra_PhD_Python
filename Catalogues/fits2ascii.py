@@ -258,7 +258,7 @@ if __name__ == "__main__":
         initstatus = parallel_env.get_queue_status()  #get the initial status
 
         #submit the jobs and save the list of jobs
-        runs = [parallel_env.apply(fits2ascii, fn, columns,
+        runs = [parallel_env.apply(fits2ascii, os.path.abspath(fn), columns,
             operations=pattern, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
