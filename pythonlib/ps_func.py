@@ -74,7 +74,7 @@ def mymodel(plin, p1loop, k, kstar=0.15, AMC=1., b=1.):
   """
   iplin = np.interp(k, plin[:,0], plin[:,1], left=0., right=0.)     #interpolated linear P(k)
   ip1loop = np.interp(k, p1loop[:,0], p1loop[:,1], left=0, right=0)     #interpolated 1loop P(k)
-  model = b * (np.exp(-np.power(k/kstar,2.))*iplin + AMC*ip1loop)   #model power spectrum
+  model = b*b * (np.exp(-np.power(k/kstar,2.))*iplin + AMC*ip1loop)   #model power spectrum
 
   return np.vstack((k,model)).T
 
