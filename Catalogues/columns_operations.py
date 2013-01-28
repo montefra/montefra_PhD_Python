@@ -26,9 +26,13 @@ def parse(argv):
     import argparse_custom as apc
 
     description = """Execute operations between columns and save in a column.
-    Example: c3+c6-1: add column 3 to column 6 and subtract 1."""
+    Example: 
+        c3+c6-1: add column 3 to column 6 and subtract 1.
+    """
 
-    p = ap.ArgumentParser(description=description,)
+    p = ap.ArgumentParser(description=description, 
+            #formatter_class=apc.RawDescrArgDefHelpFormatter)
+            formatter_class=ap.ArgumentDefaultsHelpFormatter)
 
     p.add_argument("operation", action="store", 
             help="""Operation to execute between columns.""")
@@ -45,7 +49,7 @@ def parse(argv):
             the operation with '%(dest)s'. This is executed before copying the
             result of the operation to the desired column""")
 
-    p, group = apc.insert_or_replace1(p, print_def=True)
+    p, group = apc.insert_or_replace1(p)
     p, group = apc.overwrite_or_skip(p)
 
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
@@ -55,6 +59,7 @@ def parse(argv):
     p, parallel = apc.parallel_group( p, description=description )
 
     return p.parse_args(args=argv)
+#end def parse(argv):
 
 def columns_operations(f, operations, to_column, **kwargs):
     """
@@ -104,6 +109,7 @@ def columns_operations(f, operations, to_column, **kwargs):
 
     # save the converted catalogue
     np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+#end def columns_operations(f, operations, to_column, **kwargs):
 
 if __name__ == "__main__":   #if it's the main
 

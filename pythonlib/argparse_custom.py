@@ -4,6 +4,17 @@ import argparse as ap
 import itertools as it
 import my_functions as mf
 
+#formatter_class that allows raw dextription and argument default
+
+class RawDescrArgDefHelpFormatter(ap.RawDescriptionHelpFormatter,
+        ap.ArgumentDefaultsHelpFormatter):
+    """
+    Enable features of 'RawDescriptionHelpFormatter' and 'ArgumentDefaultsHelpFormatter' united
+    1) both description and epilog are already correctly formatted and should not be line-wrapped
+    2) automatically adds information about default values to each of the argument help messages
+    """
+
+
 #The following functions add arguments to argparse
 def version_verbose(p, version):
     """
@@ -213,7 +224,23 @@ def to_int(string):
     except ValueError:
         msg = "{0} is not an integer".format(string)
         raise ap.ArgumentTypeError(msg)
-# end def is_float(string)
+
+def int_or_str(string):
+    """
+    Check if the input can be converted to int. 
+    If yes returin an integer, otherwise a string
+    Parameters
+    ----------
+    string: string
+        string to parse
+
+    output: int or string
+    """
+    try: 
+        return int(string)
+    except ValueError:
+        return string
+
 
 # ==========================
 # Action classes and functions
