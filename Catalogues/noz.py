@@ -56,7 +56,7 @@ def parse(argv):
     p.add_argument("-n", "--nbins", action="store", type=int, default='50', 
             help="Number of bins per histogram.")
     p.add_argument("--range", action="store", nargs=2, type=float, 
-            help="""Upper and lower range of the bins. If the mean is required
+            help="""Lower and upper range of the bins. If the mean is required
             the limits from the first input file are used""")
 
     p.add_argument("--mean", action="store", help="""Save the mean in file '%(dest)s'""")
@@ -77,36 +77,69 @@ def parse(argv):
 
     return p.parse_args(args=argv)
 
-def hist_save()
-def hist_save_return()
-def hist_return()
-def hist_area_save()
-def hist_area_save_return()
-def hist_area_return()
-
-    """
-    Parameters
+#---------
+# create a dictionary of pieces of docstring
+# and a decorator that substitute docstring using string.format method
+hist_doc ={
+    'common_params': """Parameters
     ----------
-    f: file object or string
+    f: string
         file containing the catalogue
-    operations: string
-        columns with operations to perform
-    to_columns int
-        save there the result of operations
-    output
-    ------
-    none
+    column: int or string
+        number of the column to use or the operation to execute""",
 
-    accepted kwargs that affects the function
-    +substitute: substitute the content of the columns involved with operations
-        with this value, if not None
+    'common_kwargs': """accepted kwargs that affects the function:
+    +weight: weights to use when creating the histogram. Can be a int or a
+        string with the operation to execute
     +verbose: verbose mode [True|False] 
-    +replace: replace string *replace[0]* with *replace[1]* in f.name
+    +nbins: number of bins for the histogram
+    +range: lower and upper limit of the histogram""",
+
+    'kwargs_file': """+replace: replace string *replace[0]* with *replace[1]* in f.name
     +insert: insert string *insert[0]* before *insert[1]* in f.name
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
     +fmt: format of the output file
     """
+}
+def format_docstring(dic_hd):
+    def wrapper(func):
+        doc = func.__doc__
+        doc = doc.format(**dic_hd)
+        func.__doc__ = doc
+        return func
+    return wrapper
+
+#-------
+# create and return and/or save histograms
+@format_docstring(hist_doc)
+def hist_return(f, column, **kwargs):
+    """
+    Read the required 'column' from file 'f', do the histogram and return the histogram
+    {common_params}
+    output
+    ------
+    hist : array
+        The values of the histogram. 
+    bin_edges : array of dtype float
+        Return the bin edges (length(hist)+1).
+    {common_kwargs}
+    """
+    hist, z_edges = np.histogram(z, bins=args.nbins, range=args.range, weights=)   #create the first histogram
+
+def hist_save(f, column, **kwargs):
+    """
+    Read the required 'columns' from file 'f', do the histogram 
+    {common_params}
+    output
+    ------
+
+    """
+def hist_save_return()
+def hist_area_save(f, column, area_z, **kwargs)
+def hist_area_save_return()
+def hist_area_return()
+
 
 if __name__ == "__main__":   #if it's the main
 

@@ -62,7 +62,8 @@ class Load_balanced_view(object):
         return self.do_parallel
 
     def exec_on_engine( self, code, block=True ):
-        """Execute the given code on all engines 
+        """
+        Execute the given code on all engines 
         
         Parameters
         ----------
@@ -72,14 +73,14 @@ class Load_balanced_view(object):
         block: bool
             whether or not to wait until done to return. default: True
         """
-        #execute the required code on all engines
-        if( type( code ) == str ): #if it's just a string
-            code = [code, ]  #convert to list
-        #execute the required commands in block mode, avoids errors if command is slow
+        if isinstance(code, basestring): # if it's a string
+            code = [code,]  # convert to list
+        # execute the required commands 
+        # (better to do in block mode, avoids errors if command is slow)
         for te in code:
             try:
-                self.dview.execute( te, block=block )  #try to execute the command
-            except error.CompositeError, e:  #if an error occurs, print a single one, not one per engine
+                self.dview.execute(te, block=block)
+            except error.CompositeError, e:  # if an error occurs, print a single one, not one per engine
                 e.raise_exception()
 
     def apply( self, f, *args, **kwargs):
