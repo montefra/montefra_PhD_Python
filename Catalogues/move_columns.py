@@ -35,8 +35,7 @@ def parse(argv):
             help="""Where to copy the column(s). (if more than one, give them
             as a string of integers separated by spaces)""")
     p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'),
-            help="""Input file name(s), containing ra and dec in the first two
-            columns""")
+            help="""Input file name(s)""")
 
     p = apc.version_verbose(p, '0.1')
 

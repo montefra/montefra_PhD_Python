@@ -62,6 +62,10 @@ def parse(argv):
     cosmo.add_argument("--nbins", action="store", type=int, default='500',
             help='Number of bins in redshift.')
 
+    p.add_argument('--negative-z', action='store', choices=[None, 'skip', 'tozero'],
+            default=None, help="""If *None* no check on negative redshifts,
+            otherwise either skip the corresponding lines or set to 0""")
+
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+',
             help="Format of the output files")
 
@@ -165,13 +169,21 @@ def convert_save(f, distance, **kwargs ):
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
     +usecols: columns to read from the input files. the first three must be ra,
-    dec and redshift
+        dec and redshift
+    +negative_z: check or not for negative redshifts and perform action [None, 'skip', 'tozero']
     +fmt: format of the output file
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     cat = np.array(pd.read_table(f, usecols=kwargs['usecols'], header=None,
         skiprows=mf.n_lines_comments(f))) # read the input catalogue
+
+    if kwargs['negative_z'] is not None:
+        negz = cat[:,2] < 0
+        if kwargs['negative_z'] == 'skip':
+            cat = cat[~negz,:]
+        else:
+            cat[negz,2] = 0.
 
     out = np.ones((cat.shape[0], 9))   #create the output catalogue
 

@@ -129,7 +129,7 @@ def fits2ascii(fname, selected_columns, operations=None, **kwargs):
     +overwrite: existing file names overwritten [True|False]
     +fmt: format of the output file
     """
-    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
+    ofile = mf.create_ofile_name(fname, **kwargs) # create the output file name
 
     # check if there are operations to execute
     check_operations = []
