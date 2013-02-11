@@ -83,6 +83,17 @@ class Load_balanced_view(object):
             except error.CompositeError, e:  # if an error occurs, print a single one, not one per engine
                 e.raise_exception()
 
+    def push(self, variables):
+        """
+        wrapper around dview.push(dict)
+        push a list of variables to the ipython engines
+        Parameters
+        ----------
+        variables: dictionary
+            dictionary of variables
+        """
+        self.dview.push(variables)
+
     def apply( self, f, *args, **kwargs):
         """
         wrapper around 'lview.apply(self, f, *args, **kwargs)'
