@@ -96,7 +96,7 @@ def columns_operations(f, operations, to_column, **kwargs):
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     # read the input catalogue
-    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f)) 
+    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s') 
 
     pattern = re.compile(r"c(\d+?)")  #re pattern with the columns name
     new_column = eval(pattern.sub("cat[\\1]", operations)) # execute the operation

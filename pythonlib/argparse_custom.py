@@ -241,6 +241,23 @@ def int_or_str(string):
     except ValueError:
         return string
 
+def OutFile(string):
+    """
+    Avoid overwriting output files
+    Parameters
+    ----------
+    string: string
+        string to parse
+
+    output: string
+    """
+    try:
+        f = open(string, 'r')
+    except IOError as e:
+        return string
+    else:
+        msg = "file '{}' alread exists".format(string)
+        raise IOError(msg)
 
 # ==========================
 # Action classes and functions
