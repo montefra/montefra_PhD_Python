@@ -443,7 +443,7 @@ if __name__ == "__main__":   #if it's the main
     # parse the column and weight arguments and return the list of columns
     # to read, the index or string to create the data and weight for the 
     # histograms
-    usecols, histdata, histweight = parse_operations(args.column, args.weight)
+    usecols, histdata, args.weight= parse_operations(args.column, args.weight)
 
     # if the mean or the volume of the redshift bins is required 
     # get the range from the first file, if not passed in the command line
@@ -468,9 +468,9 @@ if __name__ == "__main__":   #if it's the main
 
     if(args.parallel == False):  # if: parallel
         if args.area is None:
-            hists = [do_hist(fn, args.column, **vars(args)) for fn in args.ifname]
+            hists = [do_hist(fn, usecols, histdata, **vars(args)) for fn in args.ifname]
         else:
-            hists = [do_hist(fn, args.column, redshift_volumes, **vars(args))
+            hists = [do_hist(fn, usecols, histdata, redshift_volumes, **vars(args))
                     for fn in args.ifname]
     else: # else: parallel
         imports = ['import numpy as np', 'import my_functions as mf', 
@@ -491,11 +491,12 @@ if __name__ == "__main__":   #if it's the main
 
         #submit the jobs and save the list of jobs
         if args.area is None:
-            runs = [parallel_env.apply(do_hist, os.path.abspath(fn), args.column,
-            **vars(args)) for fn in args.ifname]
+            runs = [parallel_env.apply(do_hist, os.path.abspath(fn), usecols,
+                histdata, **vars(args)) for fn in args.ifname]
         else:
-            runs = [parallel_env.apply(do_hist, os.path.abspath(fn), args.column,
-            redshift_volumes, **vars(args)) for fn in args.ifname]
+            runs = [parallel_env.apply(do_hist, os.path.abspath(fn), usecols,
+                histdata, redshift_volumes, **vars(args)) for fn in
+                args.ifname]
 
         if args.verbose :   #if some info is required
             parallel_env.advancement_jobs(runs, update=args.update,
