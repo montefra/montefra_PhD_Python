@@ -79,7 +79,7 @@ def cselect(f, n_col, constraint, **kwargs):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f))
+    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s')
 
     col = cat[n_col]
     np.savetxt(ofile, cat[eval(constraint)], fmt=kwargs['fmt'], delimiter='\t')
