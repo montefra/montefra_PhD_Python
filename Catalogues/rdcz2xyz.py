@@ -175,8 +175,8 @@ def convert_save(f, distance, **kwargs ):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = np.array(pd.read_table(f, usecols=kwargs['usecols'], header=None,
-        skiprows=mf.n_lines_comments(f))) # read the input catalogue
+    cat = np.array(pd.read_table(f, header=None, sep='\s',
+        skiprows=mf.n_lines_comments(f))[kwargs['usecols']]) # read the input catalogue
 
     if kwargs['negative_z'] is not None:
         negz = cat[:,2] < 0

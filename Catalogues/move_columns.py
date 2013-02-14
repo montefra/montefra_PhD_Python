@@ -79,7 +79,7 @@ def move_columns(f, from_columns, to_columns, **kwargs):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f)) 
+    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s') 
 
     cat[to_columns] = cat[from_columns]
 
@@ -114,7 +114,7 @@ def swap_columns(f, from_columns, to_columns, **kwargs):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f)) 
+    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s') 
 
     # swap the colums
     temp_from_cols, temp_to_cols = from_columns[:], to_columns[:]
