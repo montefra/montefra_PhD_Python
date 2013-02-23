@@ -52,6 +52,9 @@ def parse(argv):
     p, group = apc.insert_or_replace1(p)
     p, group = apc.overwrite_or_skip(p)
 
+    p.add_argument("--pandas", action="store_true", 
+            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+
     description="""Cosmology to use to convert ra, dec and z in distances. h0=1
     is equivalent to have the distance in Mpc/h with any other value of h0"""
     p, cosmo = apc.cosmology_group( p, description=description, h0_def=1. )
@@ -61,6 +64,10 @@ def parse(argv):
             the values in the files""")
     cosmo.add_argument("--nbins", action="store", type=int, default='500',
             help='Number of bins in redshift.')
+
+    p.add_argument('--negative-z', action='store', choices=[None, 'skip', 'tozero'],
+            default=None, help="""If *None* no check on negative redshifts,
+            otherwise either skip the corresponding lines or set to 0""")
 
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+',
             help="Format of the output files")
@@ -164,14 +171,26 @@ def convert_save(f, distance, **kwargs ):
     +insert: insert string *insert[0]* before *insert[1]* in f.name
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
+    +pandas: use pandas for the input
     +usecols: columns to read from the input files. the first three must be ra,
-    dec and redshift
+        dec and redshift
+    +negative_z: check or not for negative redshifts and perform action [None, 'skip', 'tozero']
     +fmt: format of the output file
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = np.array(pd.read_table(f, header=None, sep='\s',
-        skiprows=mf.n_lines_comments(f))[kwargs['usecols']]) # read the input catalogue
+    if kwargs['pandas']:
+        cat = np.array(pd.read_table(f, header=None, sep='\s',
+            skiprows=mf.n_lines_comments(f))[kwargs['usecols']]) # read the input catalogue
+    else:
+        cat = np.loadtxt(f, usecols=kwargs['usecols'])
+
+    if kwargs['negative_z'] is not None:
+        negz = cat[:,2] < 0
+        if kwargs['negative_z'] == 'skip':
+            cat = cat[~negz,:]
+        else:
+            cat[negz,2] = 0.
 
     out = np.ones((cat.shape[0], 9))   #create the output catalogue
 

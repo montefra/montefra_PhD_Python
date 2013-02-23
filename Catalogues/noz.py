@@ -55,7 +55,9 @@ def parse(argv):
     p = apc.version_verbose(p, '0.1')
 
     p.add_argument("-w", "--weight", action="store", type=apc.int_or_str, 
-            help="""Weight for the histogram. Operation permitted as for 'column'""")
+            help="""Weight for the histogram. Operation permitted as for 'column'
+            If boolean expressions like '(c3==1)&(c6==0)', the weight is interpreted 
+            as 1 if *True*, as 0 if *False*""")
 
     p.add_argument("-n", "--nbins", action="store", type=int, default='50', 
             help="Number of bins per histogram.")
@@ -142,7 +144,9 @@ def hist_return(f, readcols, hdata, **kwargs):
     {common_kwargs}
     """
 
-    cat = np.loadtxt(f, usecols=usecols)
+    if kwargs['verbose']:
+        print("Process file '{}'".format(f))
+    cat = np.loadtxt(f, usecols=readcols)
     #cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f),
     #        sep='\s') 
 
@@ -160,6 +164,11 @@ def hist_return(f, readcols, hdata, **kwargs):
         weights = cat[:,kwargs['weight']]
     else:
         weights = eval(kwargs['weight'])
+
+    # if a boolean expression is give to estimate the weights, 
+    # convert the bool array to int (True=1, False=0)
+    if weights is not None and weights.dtype is np.dtype('bool'):
+        weights = weights.astype(int)
 
     hist, bin_edges = np.histogram(values, bins=kwargs['nbins'],
             range=kwargs['range'], weights=weights)
@@ -198,7 +207,7 @@ def hist_save(f, readcols, hdata, **kwargs):
     {common_kwargs}
     {kwargs_file}
     """
-    hist_save_return(f, col, **kwargs)
+    hist_save_return(f, readcols, hdata, **kwargs)
     return None
 
 @format_docstring(hist_doc)
@@ -275,7 +284,7 @@ def get_range(f, readcols, hdata):
     crange: list
         minimum and maximum in the column
     """
-    cat = np.loadtxt(f, usecols=usecols)
+    cat = np.loadtxt(f, usecols=readcols)
     #cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f),
     #        sep='\s') 
 
@@ -443,7 +452,7 @@ if __name__ == "__main__":   #if it's the main
     # parse the column and weight arguments and return the list of columns
     # to read, the index or string to create the data and weight for the 
     # histograms
-    usecols, histdata, histweight = parse_operations(args.column, args.weight)
+    usecols, histdata, args.weight= parse_operations(args.column, args.weight)
 
     # if the mean or the volume of the redshift bins is required 
     # get the range from the first file, if not passed in the command line
@@ -468,13 +477,11 @@ if __name__ == "__main__":   #if it's the main
 
     if(args.parallel == False):  # if: parallel
         if args.area is None:
-            hists = [do_hist(fn, args.column, **vars(args)) for fn in args.ifname]
+            hists = [do_hist(fn, usecols, histdata, **vars(args)) for fn in args.ifname]
         else:
-            hists = [do_hist(fn, args.column, redshift_volumes, **vars(args))
+            hists = [do_hist(fn, usecols, histdata, redshift_volumes, **vars(args))
                     for fn in args.ifname]
     else: # else: parallel
-        imports = ['import numpy as np', 'import my_functions as mf', 
-                "import pandas as pd", "import re"]
         import os
         #the absolute path and file name of this script
         path, fname = os.path.split(os.path.abspath(sys.argv[0]))
@@ -491,11 +498,12 @@ if __name__ == "__main__":   #if it's the main
 
         #submit the jobs and save the list of jobs
         if args.area is None:
-            runs = [parallel_env.apply(do_hist, os.path.abspath(fn), args.column,
-            **vars(args)) for fn in args.ifname]
+            runs = [parallel_env.apply(do_hist, os.path.abspath(fn), usecols,
+                histdata, **vars(args)) for fn in args.ifname]
         else:
-            runs = [parallel_env.apply(do_hist, os.path.abspath(fn), args.column,
-            redshift_volumes, **vars(args)) for fn in args.ifname]
+            runs = [parallel_env.apply(do_hist, os.path.abspath(fn), usecols,
+                histdata, redshift_volumes, **vars(args)) for fn in
+                args.ifname]
 
         if args.verbose :   #if some info is required
             parallel_env.advancement_jobs(runs, update=args.update,

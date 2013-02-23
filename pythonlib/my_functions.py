@@ -135,8 +135,8 @@ def create_ofile_name(f, **kwargs):
     except AttributeError:
         fname = f
 
-    if(kwargs['verbose'] == True):
-        print("Process catalogue '{0}'.".format(fname))
+    #if(kwargs['verbose'] == True):
+    #    print("Process catalogue '{0}'.".format(fname))
 
     #create the output file name and check it
     if(kwargs['replace'] == None):
@@ -166,7 +166,7 @@ def n_lines_comments(f, comment='#'):
         number of lines starting with the comment
     """
     def search_commented_lines(fo, c):
-        "f: file object; c: character"
+        "fo: file object; c: character"
         n_lines = 0
         pattern = re.compile("^\s*{0}".format(c))
         for l in fo:
