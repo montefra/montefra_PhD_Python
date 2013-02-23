@@ -210,7 +210,8 @@ def model(x, params, theo, win=[None,]*4):
     list of model marameters: bias, kstar, amc, ...
   theo: list
     list of power spectra used to build the model power spectrum: plin, p1loop
-    they must be evaluated in the same position
+    they must be evaluated in the same position. Each is a 2D array with k, P(k) 
+    in the first two columns
   win: list (optional)
     list of arrays containing the files to convolve the model with the window 
     function wij, kj, W0j, G02i. If the latter two are given the integral 
