@@ -21,35 +21,34 @@ class Load_balanced_view(object):
         *client*: an IPython parallel client
             if *None* a new object created
         """
+
         self.do_parallel = True   #everything ok 
-        if client != None:
-            self.c = client
+        try:  #try to import Client
+            from IPython.parallel import Client, error
+            if client != None:
+                self.c = client
+            else:
+                self.c = Client() 
+            self.engines_id = self.c.ids  #get the id of the engines
+            self.dview = self.c[:]
+            self.lbview = self.c.load_balanced_view() #load view
+        except ImportError:  #if the import fails
+            print( """Ipython.parallel.Client cannot be imported.\
+ Make sure to have Ipython version > 0.11 installed.""" )
+            self.do_parallel = self._continue_serial()
+        except IOError:  #if Ipython is not present
+            print( """The Ipython cluster has not been started start it\
+ before executing the code. e.g. 'ipcluster start --n=4'.""")
+            self.do_parallel = self._continue_serial()
+
+    def _continue_serial(self):
+        """asks if the user wants to continue in serial mode or quit"""
+        import stdin_stdout as sio
+        message = "Do you want to continue in serial mode"
+        if( sio.yes_or_not( message, 'y' ) ):
+            return False  #disable the paraller computation
         else:
-            try:  #try to import Client
-                from IPython.parallel import Client, error
-            except ImportError:  #if the import fails
-                print( """Ipython.parallel.Client cannot be imported.
-                Make nure to have Ipython version > 0.11 installed.
-                Serial computation enabled.""" )
-                self.do_parallel = False  #disable the paraller computation
-
-            #if the import works, initialise the client.
-            try:
-                self.c = Client()   #start the client
-            except IOError:
-                print( """The Ipython cluster has not been started start it
-                before executing the code.  'ipcluster start --n=4'.""")
-                import stdin_stdout as sio
-                message = "Do you want to continue in serial mode"
-                if( sio.yes_or_not( message, 'y' ) ):
-                    self.do_parallel = False  #disable the paraller computation
-                else:
-                    print( "Start ipcluster and restart this script" )
-                    exit()
-
-        self.engines_id = self.c.ids  #get the id of the engines
-        self.dview = self.c[:]
-        self.lbview = self.c.load_balanced_view() #load view
+            exit()
 
     def is_parallel_enabled(self):
         """Returns *True* if the initialization went fine, othewise *False*
@@ -116,7 +115,7 @@ class Load_balanced_view(object):
         """
         return self.lbview.queue_status()  
 
-    def advancement_jobs( self, jobs, update=30, init_status=None):
+    def advancement_jobs(self, jobs, update=30, init_status=None):
         """Print the advancement of the jobs in the queue.  
         This functions returns when all jobs are finished
 
@@ -136,9 +135,9 @@ class Load_balanced_view(object):
         tot_jobs = len(jobs)
         print( "Starting {0} jobs using {1} engines".format( tot_jobs,
             len(self.engines_id) ) ) #start message
-        if( update > 0 ):  #if: advancement status
+        if(update > 0):  #if: advancement status
             import stdin_stdout as sio
-            while not self.wait( jobs=jobs, timeout=update ):
+            while not self.wait(jobs=jobs, timeout=update):
                 status = self.get_queue_status()
                 #get the number of running jobs
                 totrunning = np.sum( [status[i]['tasks'] for i in self.engines_id ] )
@@ -146,9 +145,7 @@ class Load_balanced_view(object):
                 already_run = tot_jobs - (totrunning + tot_torun) 
                 percentage_run = already_run / float(tot_jobs)
                 #print the status message
-                message = """{0:.1%} done. {1} finished {2} running, {3}
-                pending.""".format( percentage_run, already_run, totrunning ,
-                tot_torun ) 
+                message = """{0:.1%} done. {1} finished {2} running, {3} pending.""".format(percentage_run, already_run, totrunning, tot_torun) 
                 sio.printer( message )
             #end while not lbview.wait( ... )
             sio.printer( "Finished" )
@@ -168,7 +165,7 @@ class Load_balanced_view(object):
                     )
         # end def advancement_jobs( ... )
 
-    def wait( self, jobs=None, timeout=-1):
+    def wait(self, jobs=None, timeout=-1):
         """wrapper around lview.wait(self, jobs=None, timeout=-1)
         waits on one or more `jobs`, for up to `timeout` seconds.
 
@@ -189,7 +186,7 @@ class Load_balanced_view(object):
         True : when all msg_ids are done
         False : timeout reached, some msg_ids still outstanding
         """
-        return self.lbview.wait()
+        return self.lbview.wait(jobs=jobs, timeout=timeout)
 
     def clear_cache(self):
         """

@@ -52,6 +52,9 @@ def parse(argv):
     p, group = apc.insert_or_replace1(p)
     p, group = apc.overwrite_or_skip(p)
 
+    p.add_argument("--pandas", action="store_true", 
+            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
         help="Format of the output files.")
 
@@ -91,21 +94,25 @@ def columns_operations(f, operations, to_column, **kwargs):
     +insert: insert string *insert[0]* before *insert[1]* in f.name
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
+    +pandas: use pandas for the input
     +fmt: format of the output file
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     # read the input catalogue
-    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s') 
+    if kwargs['pandas']:
+        cat = np.array(pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s'))
+    else:
+        cat = np.loadtxt(f)
 
     pattern = re.compile(r"c(\d+?)")  #re pattern with the columns name
-    new_column = eval(pattern.sub("cat[\\1]", operations)) # execute the operation
+    new_column = eval(pattern.sub("cat[:,\\1]", operations)) # execute the operation
 
     # substitute the columns used for the operations with the given value
     if kwargs['substitute'] is not None:
         columns_read = [int(s) for s in pattern.findall(operations)]
-        cat[columns_read] = kwargs['substitute']
-    cat[to_column] = new_column #copy the result of the operation
+        cat[:, columns_read] = kwargs['substitute']
+    cat[:, to_column] = new_column #copy the result of the operation
 
     # save the converted catalogue
     np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
@@ -128,7 +135,7 @@ if __name__ == "__main__":   #if it's the main
             columns_operations(fn, args.operation, args.to_col, **vars(args))
     else: # else: parallel
         imports = ['import numpy as np', 'import my_functions as mf', 
-                "import pandas as pd"]
+                "import pandas as pd", "import re"]
         parallel_env.exec_on_engine(imports)
 
         initstatus = parallel_env.get_queue_status()  #get the initial status

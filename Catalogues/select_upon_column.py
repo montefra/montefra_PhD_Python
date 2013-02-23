@@ -45,7 +45,10 @@ def parse(argv):
 
     p, group = apc.insert_or_replace1(p, print_def=True)
     p, group = apc.overwrite_or_skip(p)
-
+    
+    p.add_argument("--pandas", action="store_true", 
+            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+ 
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
         help="Format of the output files. (default: %(default)s)")
 
@@ -75,14 +78,20 @@ def cselect(f, n_col, constraint, **kwargs):
     +insert: insert string *insert[0]* before *insert[1]* in f.name
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
+    +pandas: use pandas for the input
     +fmt: format of the output file
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s')
-
-    col = cat[n_col]
-    np.savetxt(ofile, cat[eval(constraint)], fmt=kwargs['fmt'], delimiter='\t')
+    if kwargs['pandas']:
+        cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s')
+        col = cat[n_col]
+        cat = cat[eval(constraint)]
+    else:
+        cat = np.loadtxt(f)
+        col = cat[:,n_col]
+        cat = cat[eval(constraint),:]
+    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
 #    if(kwargs['verbose'] == True):
 #        print("File '{0}' saved".format(ofile))
 ##end cselect( f, col, constr, **kwargs):

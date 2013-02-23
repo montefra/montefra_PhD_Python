@@ -52,6 +52,9 @@ def parse(argv):
     p, group = apc.insert_or_replace1(p)
     p, group = apc.overwrite_or_skip(p)
 
+    p.add_argument("--pandas", action="store_true", 
+            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+
     description="""Cosmology to use to convert ra, dec and z in distances. h0=1
     is equivalent to have the distance in Mpc/h with any other value of h0"""
     p, cosmo = apc.cosmology_group( p, description=description, h0_def=1. )
@@ -168,6 +171,7 @@ def convert_save(f, distance, **kwargs ):
     +insert: insert string *insert[0]* before *insert[1]* in f.name
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
+    +pandas: use pandas for the input
     +usecols: columns to read from the input files. the first three must be ra,
         dec and redshift
     +negative_z: check or not for negative redshifts and perform action [None, 'skip', 'tozero']
@@ -175,8 +179,11 @@ def convert_save(f, distance, **kwargs ):
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    cat = np.array(pd.read_table(f, header=None, sep='\s',
-        skiprows=mf.n_lines_comments(f))[kwargs['usecols']]) # read the input catalogue
+    if kwargs['pandas']:
+        cat = np.array(pd.read_table(f, header=None, sep='\s',
+            skiprows=mf.n_lines_comments(f))[kwargs['usecols']]) # read the input catalogue
+    else:
+        cat = np.loadtxt(f, usecols=kwargs['usecols'])
 
     if kwargs['negative_z'] is not None:
         negz = cat[:,2] < 0

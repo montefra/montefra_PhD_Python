@@ -135,8 +135,8 @@ def create_ofile_name(f, **kwargs):
     except AttributeError:
         fname = f
 
-    if(kwargs['verbose'] == True):
-        print("Process catalogue '{0}'.".format(fname))
+    #if(kwargs['verbose'] == True):
+    #    print("Process catalogue '{0}'.".format(fname))
 
     #create the output file name and check it
     if(kwargs['replace'] == None):

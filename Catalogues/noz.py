@@ -55,7 +55,9 @@ def parse(argv):
     p = apc.version_verbose(p, '0.1')
 
     p.add_argument("-w", "--weight", action="store", type=apc.int_or_str, 
-            help="""Weight for the histogram. Operation permitted as for 'column'""")
+            help="""Weight for the histogram. Operation permitted as for 'column'
+            If boolean expressions like '(c3==1)&(c6==0)', the weight is interpreted 
+            as 1 if *True*, as 0 if *False*""")
 
     p.add_argument("-n", "--nbins", action="store", type=int, default='50', 
             help="Number of bins per histogram.")
@@ -142,7 +144,9 @@ def hist_return(f, readcols, hdata, **kwargs):
     {common_kwargs}
     """
 
-    cat = np.loadtxt(f, usecols=usecols)
+    if kwargs['verbose']:
+        print("Process file '{}'".format(f))
+    cat = np.loadtxt(f, usecols=readcols)
     #cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f),
     #        sep='\s') 
 
@@ -160,6 +164,11 @@ def hist_return(f, readcols, hdata, **kwargs):
         weights = cat[:,kwargs['weight']]
     else:
         weights = eval(kwargs['weight'])
+
+    # if a boolean expression is give to estimate the weights, 
+    # convert the bool array to int (True=1, False=0)
+    if weights is not None and weights.dtype is np.dtype('bool'):
+        weights = weights.astype(int)
 
     hist, bin_edges = np.histogram(values, bins=kwargs['nbins'],
             range=kwargs['range'], weights=weights)
@@ -198,7 +207,7 @@ def hist_save(f, readcols, hdata, **kwargs):
     {common_kwargs}
     {kwargs_file}
     """
-    hist_save_return(f, col, **kwargs)
+    hist_save_return(f, readcols, hdata, **kwargs)
     return None
 
 @format_docstring(hist_doc)
@@ -275,7 +284,7 @@ def get_range(f, readcols, hdata):
     crange: list
         minimum and maximum in the column
     """
-    cat = np.loadtxt(f, usecols=usecols)
+    cat = np.loadtxt(f, usecols=readcols)
     #cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f),
     #        sep='\s') 
 
@@ -473,8 +482,6 @@ if __name__ == "__main__":   #if it's the main
             hists = [do_hist(fn, usecols, histdata, redshift_volumes, **vars(args))
                     for fn in args.ifname]
     else: # else: parallel
-        imports = ['import numpy as np', 'import my_functions as mf', 
-                "import pandas as pd", "import re"]
         import os
         #the absolute path and file name of this script
         path, fname = os.path.split(os.path.abspath(sys.argv[0]))
