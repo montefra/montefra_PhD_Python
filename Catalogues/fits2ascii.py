@@ -129,6 +129,8 @@ def fits2ascii(fname, selected_columns, operations=None, **kwargs):
     +overwrite: existing file names overwritten [True|False]
     +fmt: format of the output file
     """
+    if kwargs['verbose']:
+        print("extracting columns '{0}' from file '{1}'".format(selected_columns, fname)) 
     ofile = mf.create_ofile_name(fname, **kwargs) # create the output file name
 
     # check if there are operations to execute

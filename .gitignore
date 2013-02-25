@@ -4,6 +4,7 @@
 *.pdf
 *.png
 *.jpg
+*.txt
 *~
 core
 
