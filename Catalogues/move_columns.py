@@ -93,7 +93,7 @@ def move_columns(f, from_columns, to_columns, **kwargs):
     #get the columns to move or swap
     substitute = None
     temp_from_cols, temp_to_cols = from_columns[:], to_columns[:]
-    if swap: # swap the colums
+    if kwargs['swap']: # swap the colums
         temp_from_cols.extend(to_columns)
         temp_to_cols.extend(from_columns)
     else:
@@ -103,7 +103,7 @@ def move_columns(f, from_columns, to_columns, **kwargs):
                 substitute = None #set back to None if there are no columns with value to substitute
 
     if kwargs['pandas']:
-        _use_pandas(f, ofile, temp_from_cols, temp_to_cols, substitute, **kwargs)
+        use_pandas(f, ofile, temp_from_cols, temp_to_cols, substitute, **kwargs)
     else:
         cat = np.loadtxt(f)
         cat[:,temp_to_cols] = cat[:,temp_from_cols]
@@ -112,7 +112,7 @@ def move_columns(f, from_columns, to_columns, **kwargs):
         np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
 #end def move_columns(f, from_cols, to_cols, **kwargs):
 
-def _use_pandas(fin, fout, from_columns, to_columns, substitute, **kwargs):
+def use_pandas(fin, fout, from_columns, to_columns, sub, **kwargs):
     """
     Reads the file using pandas read_table and save it using savetxt. The rest is like 'convert_save'
     Parameters
@@ -125,6 +125,8 @@ def _use_pandas(fin, fout, from_columns, to_columns, substitute, **kwargs):
         list of columns to copy
     to_columns: list of ints
         list of columns where to copy
+    sub: list
+        where to substitute in the catalogue
     kwargs: keyword arguments
     output
     ------
@@ -138,10 +140,10 @@ def _use_pandas(fin, fout, from_columns, to_columns, substitute, **kwargs):
     """
 
     if kwargs['chunks'] is None:  #read the whole file in one go
-        cat = pd.read_table(fin, header=None, sep='\s', skiprows=mf.n_lines_comments(f))
+        cat = pd.read_table(fin, header=None, sep='\s', skiprows=mf.n_lines_comments(fin))
         cat[to_columns] = cat[from_columns]
-        if substitute is not None:
-            cat[substitute] = kwargs['substitute']
+        if sub is not None:
+            cat[sub] = kwargs['substitute']
         np.savetxt(fout, cat, fmt=kwargs['fmt'], delimiter='\t')
 
     else:  #read the file in chuncks
@@ -150,10 +152,10 @@ def _use_pandas(fin, fout, from_columns, to_columns, substitute, **kwargs):
         with open(fout, 'w') as fo: #open the output file
             for cat in chunks:  #loop over the chunks
                 cat[to_columns] = cat[from_columns]
-                if substitute is not None:
-                    cat[substitute] = kwargs['substitute']
+                if sub is not None:
+                    cat[sub] = kwargs['substitute']
                 np.savetxt(fo, cat, fmt=kwargs['fmt'], delimiter='\t')
-#end def _use_pandas(fin, fout, distance, **kwargs)
+#end def use_pandas(fin, fout, distance, **kwargs)
 
 if __name__ == "__main__":   #if it's the main
 

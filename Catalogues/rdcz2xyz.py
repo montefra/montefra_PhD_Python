@@ -182,13 +182,13 @@ def convert_save(f, distance, **kwargs ):
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     if kwargs['pandas']:
-        return _use_pandas(f, ofile, distance, **kwargs)
+        return use_pandas(f, ofile, distance, **kwargs)
     else:
-        return _use_numpy(f, ofile, distance, **kwargs)
+        return use_numpy(f, ofile, distance, **kwargs)
 
 #end def convert_save(f, distance, **kwargs ):
 
-def _use_numpy(fin, fout, distance, **kwargs):
+def use_numpy(fin, fout, distance, **kwargs):
     """
     Reads the file using numpy loadtxt and save it using savetxt. The rest is like 'convert_save'
     Parameters
@@ -226,17 +226,18 @@ def _use_numpy(fin, fout, distance, **kwargs):
     if ncolumns > 9:
         cat = cat[:,:9]
     elif ncolumns < 9:
-        cat = np.vstack([cat, np.ones([nrows, 9-ncolumns])]).T
+        cat = np.hstack([cat, np.ones([nrows, 9-ncolumns])])
 
     cat[:,8] = cat[:,2]   #save the redshift in the last column of the output file
 
     cat[:,:3] = rdz2xyz(np.copy(cat[:,:3]), distance)   #convert ra, dec, red in x,y,z in Mpc/h
 
     # save the converted catalogue
-    np.savetxt(fout, out, fmt=kwargs['fmt'], delimiter='\t')
-    return np.amax(out[:,:3], axis=0), np.amin(out[:,:3], axis=0)
+    np.savetxt(fout, cat, fmt=kwargs['fmt'], delimiter='\t')
+    return np.amax(cat[:,:3], axis=0), np.amin(cat[:,:3], axis=0)
+#end def use_numpy(fin, fout, distance, **kwargs):
 
-def _use_pandas(fin, fout, distance, **kwargs):
+def use_pandas(fin, fout, distance, **kwargs):
     """
     Reads the file using pandas read_table and save it using savetxt. The rest is like 'convert_save'
     Parameters
@@ -250,8 +251,8 @@ def _use_pandas(fin, fout, distance, **kwargs):
     kwargs: keyword arguments
     output
     ------
-    out: ndarray
-        catalogue saved
+    max, min: lists
+        maximum and minimum values of x, y and z
 
     used kwargs that affects the function
     +pandas: use pandas for the input
@@ -263,16 +264,16 @@ def _use_pandas(fin, fout, distance, **kwargs):
     """
 
     if kwargs['chunks'] is None:  #read the whole file in one go
-        cat = pd.read_table(fin, header=None, sep='\s', skiprows=mf.n_lines_comments(f))
+        cat = pd.read_table(fin, header=None, sep='\s', skiprows=mf.n_lines_comments(fin))
         if kwargs['usecols'] is not None:
             cat = cat[kwargs['usecols']]
 
         if kwargs['negative_z'] is not None:
-            cat = _set_negative_z_pandas(cat, kwargs['negative_z'])
-        cat = _create_out_pandas(cat, distance) # convert to output array
+            cat = set_negative_z_pandas(cat, kwargs['negative_z'])
+        cat = create_out_pandas(cat, distance) # convert to output array
         np.savetxt(fout, cat, fmt=kwargs['fmt'], delimiter='\t')
 
-        return np.array(cat[range(3)].min()), np.array(cat[range(3)].max())
+        return np.array(cat[range(3)].max()), np.array(cat[range(3)].min())
 
     else:  #read the file in chuncks
         chunks = pd.read_table(fin, header=None, sep='\s',
@@ -285,17 +286,17 @@ def _use_pandas(fin, fout, distance, **kwargs):
                     cat = cat[kwargs['usecols']]
 
                 if kwargs['negative_z'] is not None:
-                    cat = _set_negative_z_pandas(cat, kwargs['negative_z'])
-                cat = _create_out_pandas(cat, distance) # convert to output array
+                    cat = set_negative_z_pandas(cat, kwargs['negative_z'])
+                cat = create_out_pandas(cat, distance) # convert to output array
                 np.savetxt(fo, cat, fmt=kwargs['fmt'], delimiter='\t')
 
                 cmin.append(np.array(cat[range(3)].min()))
                 cmax.append(np.array(cat[range(3)].max()))
 
-        return np.min(cmin, axis=0), np.max(cmax, axis=0)
-#end def _use_pandas(fin, fout, distance, **kwargs)
+        return np.amax(cmax, axis=0), np.amin(cmin, axis=0)
+#end def use_pandas(fin, fout, distance, **kwargs)
 
-def _set_negative_z_pandas(c, negative_z):
+def set_negative_z_pandas(c, negative_z):
     """check negative z in the catalogue 'c' and to what required"""
     negz = c[2] < 0
     if negative_z == 'skip':
@@ -303,8 +304,9 @@ def _set_negative_z_pandas(c, negative_z):
     else:
         c[2][negz] = 0.
     return c
+#end def set_negative_z_pandas(c, negative_z):
 
-def _create_out_pandas(cat, distance):
+def create_out_pandas(cat, distance):
     """from cat, create the output. 'distance' is used to convert ra, dec
     and redshift to cartesian x, y and z"""
     ncolumns = cat.columns.size
@@ -317,10 +319,11 @@ def _create_out_pandas(cat, distance):
         for i in range(ncolumns, 9):
             cat[i] = ones
     # copy redshift (column 3) into the last one
-    cat[8] = cat[3]
+    cat[8] = cat[2]
 
     cat[range(3)] = pd.DataFrame(rdz2xyz(np.array(cat[range(3)]), distance)) 
     return cat
+#end def create_out_pandas(cat, distance):
 
 
 if __name__ == "__main__":   # if is the main
