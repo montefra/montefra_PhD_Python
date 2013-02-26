@@ -171,6 +171,7 @@ def convert_save(f, distance, **kwargs ):
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
     +pandas: use pandas for the input
+    +chunks: chunksize in pandas.read_table
     +usecols: columns to read from the input files. the first three must be ra,
         dec and redshift
     +negative_z: check or not for negative redshifts and perform action [None, 'skip', 'tozero']
@@ -194,6 +195,8 @@ def _use_numpy(fin, fout, distance, **kwargs):
     ----------
     f: file object or string
         file containing ra, dec and z
+    fout: string
+        output file name
     distance: function
         function that evaluates the comoving distance at given redshift(s)
     kwargs: keyword arguments
@@ -240,6 +243,8 @@ def _use_pandas(fin, fout, distance, **kwargs):
     ----------
     f: file object or string
         file containing ra, dec and z
+    fout: string
+        output file name
     distance: function
         function that evaluates the comoving distance at given redshift(s)
     kwargs: keyword arguments

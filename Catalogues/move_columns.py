@@ -41,13 +41,16 @@ def parse(argv):
 
     p.add_argument("-s", "--swap", action="store_true", 
             help="Swap 'from' with 'to'")
+    p.add_argument("--substitute", action="store", type=float,
+            help="""If given, substitutes the content of the columns
+            'from_cols' not contained in 'to_cols' with '%(dest)s'. This is
+            executed only if 'swap' is *False* and after moving""")
 
     p, group = apc.insert_or_replace1(p, print_def=True)
     p, group = apc.overwrite_or_skip(p)
 
-    p.add_argument("--pandas", action="store_true", 
-            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
-
+    p, pandas = apc.pandas_group(p)
+    
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
         help="Format of the output files. (default: %(default)s)")
 
@@ -78,64 +81,79 @@ def move_columns(f, from_columns, to_columns, **kwargs):
     +insert: insert string *insert[0]* before *insert[1]* in f.name
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
+    +swap: swap the columns instead of just moving
     +pandas: use pandas for the input
+    +chunks: chunksize in pandas.read_table
+    +substitute: value to substitute in 'from_columns' that are not in 'to_columns'
     +fmt: format of the output file
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
+    if kwargs['verbose']:
+        print("Processing file '{}'".format(f))
+    #get the columns to move or swap
+    substitute = None
+    temp_from_cols, temp_to_cols = from_columns[:], to_columns[:]
+    if swap: # swap the colums
+        temp_from_cols.extend(to_columns)
+        temp_to_cols.extend(from_columns)
+    else:
+        if kwargs['substitute'] is not None: #find the columns that need substitution
+            substitute = [i for i in temp_from_cols if i not in temp_to_cols]
+            if len(substitute) == 0:
+                substitute = None #set back to None if there are no columns with value to substitute
 
     if kwargs['pandas']:
-        cat = np.loadtxt(pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s'))
+        _use_pandas(f, ofile, temp_from_cols, temp_to_cols, substitute, **kwargs)
     else:
         cat = np.loadtxt(f)
-
-    cat[:,to_columns] = cat[:,from_columns]
-
-    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
-    if(kwargs['verbose'] == True):
-        print("File '{0}' saved".format(ofile))
+        cat[:,temp_to_cols] = cat[:,temp_from_cols]
+        if substitute is not None:
+            cat[:, substitute] = kwargs['substitute']
+        np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
 #end def move_columns(f, from_cols, to_cols, **kwargs):
 
-def swap_columns(f, from_columns, to_columns, **kwargs):
+def _use_pandas(fin, fout, from_columns, to_columns, substitute, **kwargs):
     """
-    Read file 'f', swap the content of columns 'from_cols' with the one of
-    'to_cols'
+    Reads the file using pandas read_table and save it using savetxt. The rest is like 'convert_save'
     Parameters
     ----------
     f: file object or string
-        file containing the catalogue
+        file containing ra, dec and z
+    fout: string
+        output file name
     from_columns: list of ints
-        first set of columns
+        list of columns to copy
     to_columns: list of ints
-        second set of columns
+        list of columns where to copy
+    kwargs: keyword arguments
     output
     ------
     none
 
-    accepted kwargs that affects the function
-    +verbose: verbose mode [True|False] 
-    +replace: replace string *replace[0]* with *replace[1]* in f.name
-    +insert: insert string *insert[0]* before *insert[1]* in f.name
-    +skip: existing file names skipped [True|False]
-    +overwrite: existing file names overwritten [True|False]
+    used kwargs that affects the function
+    +pandas: use pandas for the input
+    +chucks: read, elaborate and print file in chunks of size 'chunks'
+    +substitute: value to substitute in 'from_columns' that are not in 'to_columns'
     +fmt: format of the output file
     """
-    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
-    if kwargs['pandas']:
-        cat = np.loadtxt(pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s'))
-    else:
-        cat = np.loadtxt(f)
+    if kwargs['chunks'] is None:  #read the whole file in one go
+        cat = pd.read_table(fin, header=None, sep='\s', skiprows=mf.n_lines_comments(f))
+        cat[to_columns] = cat[from_columns]
+        if substitute is not None:
+            cat[substitute] = kwargs['substitute']
+        np.savetxt(fout, cat, fmt=kwargs['fmt'], delimiter='\t')
 
-    # swap the colums
-    temp_from_cols, temp_to_cols = from_columns[:], to_columns[:]
-    temp_from_cols.extend(to_columns)
-    temp_to_cols.extend(from_columns)
-    cat[:, temp_to_cols] = cat[:, temp_from_cols]
-
-    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
-    if kwargs['verbose'] == True:
-        print("File '{0}' saved".format(ofile))
-#end def swap_columns(f, from_cols, to_cols, **kwargs):
+    else:  #read the file in chuncks
+        chunks = pd.read_table(fin, header=None, sep='\s',
+                skiprows=mf.n_lines_comments(fin), chunksize=kwargs['chunks'])
+        with open(fout, 'w') as fo: #open the output file
+            for cat in chunks:  #loop over the chunks
+                cat[to_columns] = cat[from_columns]
+                if substitute is not None:
+                    cat[substitute] = kwargs['substitute']
+                np.savetxt(fo, cat, fmt=kwargs['fmt'], delimiter='\t')
+#end def _use_pandas(fin, fout, distance, **kwargs)
 
 if __name__ == "__main__":   #if it's the main
 
@@ -153,27 +171,27 @@ if __name__ == "__main__":   #if it's the main
         parallel_env = Lbv()  #initialize the object with all my parallen stuff
         args.parallel = parallel_env.is_parallel_enabled()
 
-    # select which function to use
-    if args.swap:
-        ms_cols = swap_columns
-    else:
-        ms_cols = move_columns 
-
     #loop through the catalogues and add a columns with n(z)
     if(args.parallel == False):  #if: parallel
         for fn in args.ifname:  #file name loop
-            ms_cols(fn, args.from_cols, args.to_cols, **vars(args))
+            move_columns(fn, args.from_cols, args.to_cols, **vars(args))
     #run the script using the IPython parallel environment 
     else:    #if: parallel
+        import os # the absolute path and file name of this script
+        path, fname = os.path.split(os.path.abspath(sys.argv[0]))
         imports = [ 'import numpy as np', 'import my_functions as mf', 
-                'import pandas as pd']
+                'import pandas as pd',
+                #add the script directory to the python path
+                'import sys', 'sys.path.append("{0}")'.format(path),     
+                #import the desired function in the namespace
+                'from {0} import *'.format(os.path.splitext(fname)[0])]  
         parallel_env.exec_on_engine(imports)
 
         initstatus = parallel_env.get_queue_status()  #get the initial status
 
         #submit the jobs and save the list of jobs
         import os
-        runs = [parallel_env.apply(ms_cols, os.path.abspath(fn),
+        runs = [parallel_env.apply(move_columns, os.path.abspath(fn),
             args.from_cols, args.to_cols, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
