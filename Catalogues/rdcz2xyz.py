@@ -177,6 +177,8 @@ def convert_save(f, distance, **kwargs ):
     +negative_z: check or not for negative redshifts and perform action [None, 'skip', 'tozero']
     +fmt: format of the output file
     """
+    if kwargs['verbose']:
+        print("Processing file '{}'".format(f))
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     if kwargs['pandas']:
@@ -218,6 +220,8 @@ if __name__ == "__main__":   # if is the main
     #compute the comoving distance for the given cosmology
     dis = comoving_distance( args.om, args.ok, args.wde, args.h0,
             zrange=args.zrange, nbins=args.nbins)
+    if args.verbose:
+        print("Distance vs redshift function done")
 
     #if parallel computation required, check that Ipython.parallel.Client 
     #is in installed and that the ipycluster has been started
