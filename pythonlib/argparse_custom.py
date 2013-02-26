@@ -305,7 +305,7 @@ def file_exists(warning=False, remove=False):
     """
     Check that files exist. Build similarly to argparse.FileType
 
-    Keyword Arguments:
+    Keyword Arguments, used only if more than one files provided:
         - warning -- bool. If *True* throw a warning instead of an error if file
           does not exists
         - remove -- bool. If *True* remove the non existing files
@@ -318,24 +318,29 @@ def file_exists(warning=False, remove=False):
         def __call__(self, parser, namespace, values, option_string=None):
             # Try to open the file name
             to_be_removed = [] #list of non existing file names
-            for fn in values:
+            # message to send to the error handling 
+            message = "can't open '%s': %s"
+            # if only one file name passed
+            if isinstance(values, str):
                 try:
-                    f = open(fn, 'r')
-                # If fails rais and error or just write that the file does not exists
-                # and return its name
-                except IOError as e:
-                    message = "can't open '%s': %s"
-                    if warning is False:
-                        raise ap.ArgumentTypeError(message % (fn, e))
-                    else:
-                        print("File '{0}' does not exists".format(fn))
-                        to_be_removed.append(fn)
-                # If the file exists close it and return its name
-                else:
+                    f = open(values, 'r')
                     f.close()
-            if remove is True:  # remove non existing files
-                for tbr in to_be_removed:
-                    values.remove(tbr)
+                except IOError as e:
+                    raise ap.ArgumentTypeError(message % (fn, e))
+            else:
+                for fn in values:
+                    try:
+                        f = open(fn, 'r')
+                        f.close()
+                    except IOError as e:
+                        if warning is False:
+                            raise ap.ArgumentTypeError(message % (fn, e))
+                        else:
+                            print("File '{0}' does not exists".format(fn))
+                            to_be_removed.append(fn)
+                if remove is True:  # remove non existing files
+                    for tbr in to_be_removed:
+                        values.remove(tbr)
             setattr(namespace, self.dest, values)
     return FileExists
 
