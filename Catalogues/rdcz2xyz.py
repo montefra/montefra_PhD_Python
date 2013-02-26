@@ -52,10 +52,7 @@ def parse(argv):
     p, group = apc.insert_or_replace1(p)
     p, group = apc.overwrite_or_skip(p)
 
-    p.add_argument("--pandas", action="store_true", 
-            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
-    p.add_argument("--chunks", action="store", type=int,
-            help="If pandas used, read the input file in chunks of '%(dest)s' lines")
+    p, pandas = apc.pandas_group(p)
 
     description="""Cosmology to use to convert ra, dec and z in distances. h0=1
     is equivalent to have the distance in Mpc/h with any other value of h0"""

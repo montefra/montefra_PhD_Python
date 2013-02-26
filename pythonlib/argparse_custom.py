@@ -133,6 +133,28 @@ def cosmology_group(p, description=None, print_def=False, h0_def=None):
                 help='''Reduced Hubble parameter.''')
     return p, cosmo
 
+def pandas_group(p, description=None):
+    """
+    Add group with pandas keys
+    Parameters
+    ----------
+    p: argparse instance
+        object containing the command line parsing arguments
+    description: string (optional)
+        description of the group
+    output
+    ------
+    p: argparse instance
+        object containing the updated command line parsing arguments 
+    pandas: 
+        group containing pandas options
+    """
+    pandas = p.add_argument_group(title="Pandas", description=description)
+    pandas.add_argument("--pandas", action="store_true", 
+            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+    pandas.add_argument("--chunks", action="store", type=int,
+            help="If pandas used, read the input file in chunks of '%(dest)s' lines")
+    return p, pandas
 
 def parallel_group(p, description=None):
     """
