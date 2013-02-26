@@ -54,6 +54,8 @@ def parse(argv):
 
     p.add_argument("--pandas", action="store_true", 
             help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+    p.add_argument("--chunks", action="store", type=int,
+            help="If pandas used, read the input file in chunks of '%(dest)s' lines")
 
     description="""Cosmology to use to convert ra, dec and z in distances. h0=1
     is equivalent to have the distance in Mpc/h with any other value of h0"""
@@ -182,10 +184,36 @@ def convert_save(f, distance, **kwargs ):
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
 
     if kwargs['pandas']:
-        cat = np.array(pd.read_table(f, header=None, sep='\s',
-            skiprows=mf.n_lines_comments(f))[kwargs['usecols']]) # read the input catalogue
+        return _use_pandas(f, ofile, distance, **kwargs)
     else:
-        cat = np.loadtxt(f, usecols=kwargs['usecols'])
+        return _use_numpy(f, ofile, distance, **kwargs)
+
+#end def convert_save(f, distance, **kwargs ):
+
+def _use_numpy(fin, fout, distance, **kwargs):
+    """
+    Reads the file using numpy loadtxt and save it using savetxt. The rest is like 'convert_save'
+    Parameters
+    ----------
+    f: file object or string
+        file containing ra, dec and z
+    distance: function
+        function that evaluates the comoving distance at given redshift(s)
+    kwargs: keyword arguments
+    output
+    ------
+    max, min: lists
+        maximum and minimum values of x, y and z
+        If kwargs['skip'] == True and the output file name already exists, a *None*
+        is returned
+
+    used kwargs that affects the function
+    +usecols: columns to read from the input files. the first three must be ra,
+        dec and redshift
+    +negative_z: check or not for negative redshifts and perform action [None, 'skip', 'tozero']
+    +fmt: format of the output file
+    """
+    cat = np.loadtxt(fin, usecols=kwargs['usecols'])
 
     if kwargs['negative_z'] is not None:
         negz = cat[:,2] < 0
@@ -194,22 +222,103 @@ def convert_save(f, distance, **kwargs ):
         else:
             cat[negz,2] = 0.
 
-    out = np.ones((cat.shape[0], 9))   #create the output catalogue
+    (nrows, ncolumns) = cat.shape
+    if ncolumns > 9:
+        cat = cat[:,:9]
+    elif ncolumns < 9:
+        cat = np.vstack([cat, np.ones([nrows, 9-ncolumns])]).T
 
-    out[:,8] = cat[:,2]   #save the redshift in the last column of the output file
-    if(cat.shape[1]<=8):  #if the total number of columns is less than 8
-        out[ :, 3:cat.shape[1] ] = cat[ :, 3:]   #all are copied
-    else:#only the first 5 columns after ra, dec, redshift are copied
-        out[ :, 3:8 ] = cat[ :, 3:8 ]   
+    cat[:,8] = cat[:,2]   #save the redshift in the last column of the output file
 
-    out[:,:3] = rdz2xyz(np.copy(cat[:,:3]), distance)   #convert ra, dec, red in x,y,z in Mpc/h
+    cat[:,:3] = rdz2xyz(np.copy(cat[:,:3]), distance)   #convert ra, dec, red in x,y,z in Mpc/h
 
     # save the converted catalogue
-    np.savetxt(ofile, out, fmt=kwargs['fmt'], delimiter='\t')
-
-    #return the max and minimum
+    np.savetxt(fout, out, fmt=kwargs['fmt'], delimiter='\t')
     return np.amax(out[:,:3], axis=0), np.amin(out[:,:3], axis=0)
-#end def convert_save(f, distance, **kwargs ):
+
+def _use_pandas(fin, fout, distance, **kwargs):
+    """
+    Reads the file using pandas read_table and save it using savetxt. The rest is like 'convert_save'
+    Parameters
+    ----------
+    f: file object or string
+        file containing ra, dec and z
+    distance: function
+        function that evaluates the comoving distance at given redshift(s)
+    kwargs: keyword arguments
+    output
+    ------
+    out: ndarray
+        catalogue saved
+
+    used kwargs that affects the function
+    +pandas: use pandas for the input
+    +chucks: read, elaborate and print file in chunks of size 'chunks'
+    +usecols: columns to read from the input files. the first three must be ra,
+        dec and redshift
+    +negative_z: check or not for negative redshifts and perform action [None, 'skip', 'tozero']
+    +fmt: format of the output file
+    """
+
+    if kwargs['chunks'] is None:  #read the whole file in one go
+        cat = pd.read_table(fin, header=None, sep='\s', skiprows=mf.n_lines_comments(f))
+        if kwargs['usecols'] is not None:
+            cat = cat[kwargs['usecols']]
+
+        if kwargs['negative_z'] is not None:
+            cat = _set_negative_z_pandas(cat, kwargs['negative_z'])
+        cat = _create_out_pandas(cat, distance) # convert to output array
+        np.savetxt(fout, cat, fmt=kwargs['fmt'], delimiter='\t')
+
+        return np.array(cat[range(3)].min()), np.array(cat[range(3)].max())
+
+    else:  #read the file in chuncks
+        chunks = pd.read_table(fin, header=None, sep='\s',
+                skiprows=mf.n_lines_comments(fin), chunksize=kwargs['chunks'])
+        cmin, cmax = [],[]  #contain minimum and maximum of the 
+        with open(fout, 'w') as fo: #open the output file
+            for cat in chunks:  #loop over the chunks
+
+                if kwargs['usecols'] is not None:
+                    cat = cat[kwargs['usecols']]
+
+                if kwargs['negative_z'] is not None:
+                    cat = _set_negative_z_pandas(cat, kwargs['negative_z'])
+                cat = _create_out_pandas(cat, distance) # convert to output array
+                np.savetxt(fo, cat, fmt=kwargs['fmt'], delimiter='\t')
+
+                cmin.append(np.array(cat[range(3)].min()))
+                cmax.append(np.array(cat[range(3)].max()))
+
+        return np.min(cmin, axis=0), np.max(cmax, axis=0)
+#end def _use_pandas(fin, fout, distance, **kwargs)
+
+def _set_negative_z_pandas(c, negative_z):
+    """check negative z in the catalogue 'c' and to what required"""
+    negz = c[2] < 0
+    if negative_z == 'skip':
+        c = c[~negz]
+    else:
+        c[2][negz] = 0.
+    return c
+
+def _create_out_pandas(cat, distance):
+    """from cat, create the output. 'distance' is used to convert ra, dec
+    and redshift to cartesian x, y and z"""
+    ncolumns = cat.columns.size
+    nrows = cat.index.size
+    # set the number of columns to 9
+    if ncolumns > 9:
+        cat = cat.ix[:,:9]
+    elif ncolumns < 9:
+        ones = np.ones(nrows)
+        for i in range(ncolumns, 9):
+            cat[i] = ones
+    # copy redshift (column 3) into the last one
+    cat[8] = cat[3]
+
+    cat[range(3)] = pd.DataFrame(rdz2xyz(np.array(cat[range(3)]), distance)) 
+    return cat
 
 
 if __name__ == "__main__":   # if is the main
@@ -246,14 +355,13 @@ if __name__ == "__main__":   # if is the main
         import os
         #the absolute path and file name of this script
         path, fname = os.path.split(os.path.abspath(sys.argv[0]))
-        function_name = 'rdz2xyz'  #name of the function to import
         #command to run on all the engines
         imports = ['import numpy as np', 'import my_functions as mf',
                 'import pandas as pd',
                 #add the script directory to the python path
                 'import sys', 'sys.path.append("{0}")'.format(path),     
                 #import the desired function in the namespace
-                'from {0} import {1}'.format(os.path.splitext(fname)[0], function_name)]  
+                'from {0} import *'.format(os.path.splitext(fname)[0])]  
         parallel_env.exec_on_engine(imports)
 
         initstatus = parallel_env.get_queue_status()  #get the initial status
