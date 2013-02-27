@@ -49,7 +49,7 @@ def parse(argv):
             the operation with '%(dest)s'. This is executed before copying the
             result of the operation to the desired column""")
 
-    p, group = apc.insert_or_replace1(p)
+    p, group = apc.insert_or_replace(p)
     p, group = apc.overwrite_or_skip(p)
 
     p.add_argument("--pandas", action="store_true", 

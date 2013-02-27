@@ -46,7 +46,7 @@ def parse(argv):
             'from_cols' not contained in 'to_cols' with '%(dest)s'. This is
             executed only if 'swap' is *False* and after moving""")
 
-    p, group = apc.insert_or_replace1(p, print_def=True)
+    p, group = apc.insert_or_replace(p, print_def=True)
     p, group = apc.overwrite_or_skip(p)
 
     p, pandas = apc.pandas_group(p)

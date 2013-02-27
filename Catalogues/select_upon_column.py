@@ -43,7 +43,7 @@ def parse(argv):
 
     p = apc.version_verbose( p, '1.0' )
 
-    p, group = apc.insert_or_replace1(p, print_def=True)
+    p, group = apc.insert_or_replace(p, print_def=True)
     p, group = apc.overwrite_or_skip(p)
     
     p.add_argument("--pandas", action="store_true", 

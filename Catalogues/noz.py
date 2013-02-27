@@ -49,7 +49,7 @@ def parse(argv):
     p.add_argument("ifname", nargs='+', action=apc.file_exists(),
             help="""Input file name(s)""")
     
-    p, group = apc.insert_or_replace1(p)
+    p, group = apc.insert_or_replace(p)
     p, group = apc.overwrite_or_skip(p)
 
     p = apc.version_verbose(p, '0.1')

@@ -33,7 +33,7 @@ def version_verbose(p, version):
 
     return p
 
-def insert_or_replace1(p, print_def=False):
+def insert_or_replace(p, print_def=False):
     """
     Add exclusive group for creating the output file name substituting or inserting
     Parameters

@@ -36,7 +36,7 @@ def parse(argv):
 
   p = apc.version_verbose( p, '1' )
 
-  p, group = apc.insert_or_replace1(p)
+  p, group = apc.insert_or_replace(p)
   p, group = apc.overwrite_or_skip(p)
 
   p.add_argument("-z", "--z-col", type=int, help="""If given the redshifts are substituted in 
