@@ -38,14 +38,13 @@ def parse(argv):
 
     p = apc.version_verbose(p, '1.0')
 
-    p, group = apc.insert_or_replace1(p, print_def=True)
+    p, group = apc.insert_or_replace(p, print_def=True)
     p, group = apc.overwrite_or_skip(p)
     
-    p.add_argument("-c", "--repl-columns", nargs=2, type=int, default=[0,1],
-            help="Columns to read from 'replacement' file")
+    p.add_argument("-c", "--repl-columns", nargs='+', action=apc.required_length(1,2), 
+            type=int, default=[0,1], help="Columns to read from 'replacement' file")
 
-    p.add_argument("--pandas", action="store_true", 
-            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+    p, pandas = apc.pandas_group(p)
  
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
         help="Format of the output files. (default: %(default)s)")
@@ -62,7 +61,7 @@ def read_replacement(fname, usecols, verbose=False):
     fname: string
         file to read
     usecols: 2 item list
-        columns to read in the input file
+        columns to read in from the input file
     verbose: bool (option)
     
     output
@@ -71,11 +70,65 @@ def read_replacement(fname, usecols, verbose=False):
     """
     if verbose:
         print("Reading file '{}'".format(fname))
-    replacement = np.loadtxt(fname, usecols=usecols)
-    
-    return replacement
 
-def substitute_from_file(fname, col, replacement_arr, **kwargs):
+    class Replacement(object):
+        """
+        read the file containing the replacement and provide a __call__
+        method to get the content of the file
+        Parameters
+        ----------
+        fname: string
+            file to read
+        usecols: list with one or two elements
+            columns to read from the input file
+        """
+        def __init__(self, fname, usecols):
+            self.replacement = np.loadtxt(fname, usecols=usecols)
+            self.ncols = len(usecols)
+
+        def _one_column(self, x):
+            """
+            called by __call__ when only one column is read
+            """
+            assert x.dtype == int, "'x' must be of integer type"
+            return self.replacement[x]
+        def _two_columns(self, x):
+            """
+            called by __call__ when two columns are read
+            x casted to float and copied to local variable
+            """
+            _x = x.astype(np.float)
+            for (r0, r1) in self.replacement:
+                _x[x==r0] = r1
+            return _x
+            
+
+        def __call__(self, x):
+            """
+            Returns the content of the input file at point x.
+            If only one column read from the file, x must be an index (a list
+            of indeces) of the read array. If the read columns are 2, returns 
+            the values in the second one where 'x' matches the first one. 'x'
+            is casted to float to avoid problems if passing from indeces to
+            float values.
+            Parameters
+            ----------
+            x: int, float or list/ndarray
+                value(s) 
+            output
+            ------
+            ndarray with the same shape of x
+            """
+            if self.ncols == 1:
+                return self._one_column(x)
+            else:
+                return self._two_columns(x)
+    # end class Replacement(object):
+    
+    return Replacement(fname, usecols)
+# end def read_replacement(fname, usecols, verbose=False):
+
+def substitute_from_file(fname, col, replacementc, **kwargs):
     """
     Read file 'fname' and replace 'column' matching 'replacement_arr[:,0]' with
     'replacement_arr[:,1]'
@@ -86,8 +139,8 @@ def substitute_from_file(fname, col, replacement_arr, **kwargs):
         file containing the catalogue
     col: integer
         column to use
-    replacement_arr: Nx2 ndarray 
-        replacement rule for column
+    replacementc: callable
+        function that execute the replacement
         
     output
     ------
@@ -100,26 +153,39 @@ def substitute_from_file(fname, col, replacement_arr, **kwargs):
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
     +pandas: use pandas for the input
+    +chunks: chunksize in pandas.read_table
     +fmt: format of the output file
     """
-    ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
+    if kwargs['verbose']:
+        print("Processing file '{}'".format(fname))
+    ofile = mf.create_ofile_name(fname, **kwargs) # create the output file name
 
     if kwargs['pandas']:
-        cat = np.array(pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s'))
+        if kwargs['chunks'] is None:
+            cat = pd.read_table(fname, header=None, skiprows=mf.n_lines_comments(fname), sep='\s')
+            cat[col] = replacementc(cat[col])
+            np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+        else:
+            chunks = pd.read_table(fname, header=None, sep='\s',
+                    skiprows=mf.n_lines_comments(fname), chunksize=kwargs['chunks'])
+            with open(ofile, 'w') as fo: #open the output file
+                for cat in chunks:  #loop over the chunks
+                    cat[col] = replacementc(cat[col])
+                    np.savetxt(fo, cat, fmt=kwargs['fmt'], delimiter='\t')
+
     else:
-        cat = np.loadtxt(f)
-
-    col_to_replace = np.copy(cat[:,col])
-    for ra in replacement_arr:
-        index_to_replace = col_to_replace==ra[0]
-        cat[index_to_replace, col] = ra[1]
-
-    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+        cat = np.loadtxt(fname)
+        cat[:,col] = replacementc(cat[:,col])
+        np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+#end def substitute_from_file(fname, col, replacementc, **kwargs):
 
 if __name__ == "__main__":   #if it's the main
 
     import sys
     args = parse(sys.argv[1:])
+
+    if args.parallel:
+        raise RuntimeError("The class 'Replacement' can't be sent to the engines.")
 
     #if parallel computation required, check that Ipython.parallel.Client 
     #is in installed and that the ipycluster has been started
@@ -129,7 +195,7 @@ if __name__ == "__main__":   #if it's the main
         args.parallel = parallel_env.is_parallel_enabled()
 
     #read in the file with the replacement
-    replacement = read_replacement(args.replacement, args.repl-columns,
+    replacement = read_replacement(args.replacement, args.repl_columns,
             verbose=args.verbose)
 
     #loop through the catalogues and add a columns with n(z)
@@ -147,7 +213,7 @@ if __name__ == "__main__":   #if it's the main
 
         #submit the jobs and save the list of jobs
         import os
-        runs = [parallel_env.apply(cselect, os.path.abspath(fn), args.column,
+        runs = [parallel_env.apply(substitute_from_file, os.path.abspath(fn), args.column,
             replacement, **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
