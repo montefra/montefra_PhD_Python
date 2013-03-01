@@ -52,8 +52,7 @@ def parse(argv):
     p, group = apc.insert_or_replace(p)
     p, group = apc.overwrite_or_skip(p)
 
-    p.add_argument("--pandas", action="store_true", 
-            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+    p, pandas = apc.pandas_group(p)
 
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
         help="Format of the output files.")
@@ -95,27 +94,48 @@ def columns_operations(f, operations, to_column, **kwargs):
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
     +pandas: use pandas for the input
+    +chunks: chunksize in pandas.read_table
     +fmt: format of the output file
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
+    if kwargs['verbose']:
+        print("Processing file '{}'".format(f))
+
+    pattern = re.compile(r"c(\d+?)")  #re pattern with the columns name
+    if kwargs['pandas']:  #expression to evaluate to execute the operation
+        to_evaluate = pattern.sub("cat[\\1]", operations)
+    else:
+        to_evaluate = pattern.sub("cat[:,\\1]", operations)
+    #columns used in the operation
+    columns_read = [int(s) for s in pattern.findall(operations)]
 
     # read the input catalogue
     if kwargs['pandas']:
-        cat = np.array(pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s'))
+        if kwargs['chunks'] is None:
+            cat = pd.read_table(f, header=None,
+                    skiprows=mf.n_lines_comments(f), sep='\s')
+            new_column = eval(to_evaluate) # do the operation
+            if kwargs['substitute'] is not None:
+                cat[columns_read] = kwargs['substitute']
+            cat[to_column] = new_column #copy the result of the operation
+            np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+        else:
+            chunks = pd.read_table(f, header=None, sep='\s',
+                    skiprows=mf.n_lines_comments(f), chunksize=kwargs['chunks'])
+            with open(ofile, 'w') as of:
+                for cat in chunks:
+                    new_column = eval(to_evaluate) # do the operation
+                    if kwargs['substitute'] is not None:
+                        cat[columns_read] = kwargs['substitute']
+                    cat[to_column] = new_column #copy the result of the operation
+                    np.savetxt(of, cat, fmt=kwargs['fmt'], delimiter='\t')
     else:
         cat = np.loadtxt(f)
-
-    pattern = re.compile(r"c(\d+?)")  #re pattern with the columns name
-    new_column = eval(pattern.sub("cat[:,\\1]", operations)) # execute the operation
-
-    # substitute the columns used for the operations with the given value
-    if kwargs['substitute'] is not None:
-        columns_read = [int(s) for s in pattern.findall(operations)]
-        cat[:, columns_read] = kwargs['substitute']
-    cat[:, to_column] = new_column #copy the result of the operation
-
-    # save the converted catalogue
-    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+        new_column = eval(to_evaluate) # do the operation
+        if kwargs['substitute'] is not None:
+            cat[:, columns_read] = kwargs['substitute']
+        cat[:, to_column] = new_column #copy the result of the operation
+        np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
 #end def columns_operations(f, operations, to_column, **kwargs):
 
 if __name__ == "__main__":   #if it's the main
