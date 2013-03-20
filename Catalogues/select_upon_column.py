@@ -8,6 +8,7 @@ constraints given for a column
 import my_functions as mf
 import numpy as np
 import pandas as pd
+import re
 
 def parse(argv):
     """
@@ -25,17 +26,16 @@ def parse(argv):
     import argparse as ap
     import argparse_custom as apc
 
-    description = """  Read one or more files and extract a part of the file according to the constraints given for a column.
+    description = """  Read one or more files and extract a part of the file according to the constraints given.
         Examples: 
-        %(prog)s 3 'col < 4' filename
-        %(prog)s 3 '(col < 4) | (col > 8)' filename
-        %(prog)s 3 '(col > 8) & (col < 4)' filename
-        'col' is the internal name of the column to be checked: use this can in the 'constr' string.
+        %(prog)s 'c3 < 4' filename
+        %(prog)s '(c3 < 4) | (c3 > 8)' filename
+        %(prog)s '(c4 > 8) & (c4 < 4)' filename
         WARNING: The constraint is evaluated with 'eval' and no check is done upon local or global variables."""
 
     p = ap.ArgumentParser(description=description, formatter_class=ap.RawDescriptionHelpFormatter)
 
-    p.add_argument("column", action="store", type=int, help="Column to check")
+    #p.add_argument("column", action="store", type=int, help="Column to check")
     p.add_argument("constr", action="store", 
         help="""Constraints to be applied to the desired column""")
     p.add_argument("ifname", nargs='+', action=apc.file_exists(),
@@ -46,8 +46,7 @@ def parse(argv):
     p, group = apc.insert_or_replace(p, print_def=True)
     p, group = apc.overwrite_or_skip(p)
     
-    p.add_argument("--pandas", action="store_true", 
-            help="Use `pandas.read_table` instead of `numpy.loadtxt` to read the files")
+    p, pandas = apc.pandas_group(p)
  
     p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
         help="Format of the output files. (default: %(default)s)")
@@ -57,15 +56,13 @@ def parse(argv):
 
     return p.parse_args(args=argv)
 
-def cselect(f, n_col, constraint, **kwargs):
+def cselect(f, constraint, **kwargs):
     """read file 'f', substitute a columns with noz(z), with z in 'f' itself, and
     save in a file.
     Parameters
     ----------
     f: file object or string
         file containing the catalogue
-    n_col: integer
-        column to use for the selection
     constr: string
         selection criterion
     output
@@ -79,21 +76,30 @@ def cselect(f, n_col, constraint, **kwargs):
     +skip: existing file names skipped [True|False]
     +overwrite: existing file names overwritten [True|False]
     +pandas: use pandas for the input
+    +chunks: chunksize in pandas.read_table
     +fmt: format of the output file
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
+    if kwargs['verbose']:
+        print("Processing file '{}'".format(f))
 
     if kwargs['pandas']:
-        cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f), sep='\s')
-        col = cat[n_col]
-        cat = cat[eval(constraint)]
+        if kwargs['chunks'] is None:
+            cat = pd.read_table(f, header=None,
+                    skiprows=mf.n_lines_comments(f), sep='\s')
+            cat = cat[eval(constraint)]
+            np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
+        else:
+            chunks = pd.read_table(f, header=None, sep='\s',
+                    skiprows=mf.n_lines_comments(f), chunksize=kwargs['chunks'])
+            with open(ofile, 'w') as of:
+                for cat in chunks:
+                    cat = cat[eval(constraint)]
+                    np.savetxt(of, cat, fmt=kwargs['fmt'], delimiter='\t')
     else:
         cat = np.loadtxt(f)
-        col = cat[:,n_col]
         cat = cat[eval(constraint),:]
-    np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
-#    if(kwargs['verbose'] == True):
-#        print("File '{0}' saved".format(ofile))
+        np.savetxt(ofile, cat, fmt=kwargs['fmt'], delimiter='\t')
 ##end cselect( f, col, constr, **kwargs):
 
 if __name__ == "__main__":   #if it's the main
@@ -108,11 +114,18 @@ if __name__ == "__main__":   #if it's the main
         parallel_env = Lbv()  #initialize the object with all my parallen stuff
         args.parallel = parallel_env.is_parallel_enabled()
 
+    # create the string to evaluate
+    pattern = re.compile(r"c(\d+?)")  #re pattern with the columns name
+    if args.pandas:  #expression to evaluate to execute the operation
+        to_evaluate = pattern.sub("cat[\\1]", args.constr)
+    else:
+        to_evaluate = pattern.sub("cat[:,\\1]", args.constr)
+
     #loop through the catalogues and add a columns with n(z)
     if(args.parallel == False):  #if: parallel
         for fn in args.ifname:  #file name loop
             #substitute n(z)
-            cselect(fn, args.column, args.constr, **vars(args))
+            cselect(fn, to_evaluate, **vars(args))
     #run the script using the IPython parallel environment 
     else:    #if: parallel
         imports = ['import numpy as np', 'import my_functions as mf', 
@@ -123,8 +136,8 @@ if __name__ == "__main__":   #if it's the main
 
         #submit the jobs and save the list of jobs
         import os
-        runs = [parallel_env.apply(cselect, os.path.abspath(fn), args.column,
-            args.constr, **vars(args)) for fn in args.ifname]
+        runs = [parallel_env.apply(cselect, os.path.abspath(fn), to_evaluate,
+            **vars(args)) for fn in args.ifname]
 
         if args.verbose :   #if some info is required
             parallel_env.advancement_jobs(runs, update=args.update,
