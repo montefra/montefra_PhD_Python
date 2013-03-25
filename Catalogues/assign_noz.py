@@ -29,8 +29,8 @@ def parse(argv):
     p = ap.ArgumentParser(description=description,
             formatter_class=ap.ArgumentDefaultsHelpFormatter)
 
-    p.add_argument("noz", action="store", type=ap.FileType('r'), help="File
-            containing a table of z, n(z)")
+    p.add_argument("noz", action="store", type=ap.FileType('r'), 
+            help="File containing a table of z, n(z)")
 
     p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'),
             help="Input file name(s), containing z in one of the columns")
