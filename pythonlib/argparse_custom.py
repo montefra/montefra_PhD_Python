@@ -348,7 +348,7 @@ def file_exists(warning=False, remove=False):
                     f = open(values, 'r')
                     f.close()
                 except IOError as e:
-                    raise ap.ArgumentTypeError(message % (fn, e))
+                    raise ap.ArgumentTypeError(message % (values, e))
             else:
                 for fn in values:
                     try:
