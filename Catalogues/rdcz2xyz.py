@@ -397,9 +397,9 @@ if __name__ == "__main__":   # if is the main
     string_template = "{:<{}}  "+"  ".join(["{:^9}",]*3)
     float_template = "{:<{}}: "+", ".join(["{:>+9.3f}",]*3)
 
-    print string_template.format(" ", maxstring_lenght, "x", "y", "z")
-    print float_template.format("Maximun", maxstring_lenght, *absmax)
-    print float_template.format("Minimum", maxstring_lenght, *absmin)
-    print float_template.format("Difference", maxstring_lenght, *absmax-absmin)
+    print(string_template.format(" ", maxstring_lenght, "x", "y", "z"))
+    print(float_template.format("Maximun", maxstring_lenght, *absmax))
+    print(float_template.format("Minimum", maxstring_lenght, *absmin))
+    print(float_template.format("Difference", maxstring_lenght, *absmax-absmin))
 
     exit()
