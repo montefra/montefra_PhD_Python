@@ -1,6 +1,7 @@
 """This library contains functions and command line arguments that are commong among codes"""
 
 import argparse as ap
+import io_custom as ioc
 import itertools as it
 import my_functions as mf
 
@@ -263,7 +264,7 @@ def int_or_str(string):
     except ValueError:
         return string
 
-def OutFile(string):
+def outfile(string):
     """
     Avoid overwriting output files
     Parameters
@@ -273,19 +274,14 @@ def OutFile(string):
 
     output: string
     """
-    try:
-        f = open(string, 'r')
-    except IOError as e:
-        return string
-    else:
-        msg = "file '{}' alread exists".format(string)
-        raise IOError(msg)
+    if ioc.file_exists(string):
+        raise ap.ArgumentTypeError("file '{}' alread exists".format(string))
 
 # ==========================
 # Action classes and functions
 # ==========================
 
-class store_fmt(ap.Action):
+class StoreFmt(ap.Action):
     """
     Check the lenghts of the format list. If has one element, is transformed to
     a string 
@@ -296,7 +292,7 @@ class store_fmt(ap.Action):
         else:
             setattr(namespace, self.dest, values)
 
-class store_cycle(ap.Action):
+class StoreCycle(ap.Action):
     "Substitute the value or the array of values with a itertool cycle"
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, it.cycle(values))
@@ -344,17 +340,11 @@ def file_exists(warning=False, remove=False):
             message = "can't open '%s': %s"
             # if only one file name passed
             if isinstance(values, str):
-                try:
-                    f = open(values, 'r')
-                    f.close()
-                except IOError as e:
+                if not ioc.file_exists(values):
                     raise ap.ArgumentTypeError(message % (values, e))
             else:
                 for fn in values:
-                    try:
-                        f = open(fn, 'r')
-                        f.close()
-                    except IOError as e:
+                    if not ioc.file_exists(fn):
                         if warning is False:
                             raise ap.ArgumentTypeError(message % (fn, e))
                         else:
