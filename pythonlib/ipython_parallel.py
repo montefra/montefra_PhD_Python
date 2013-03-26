@@ -136,7 +136,7 @@ class Load_balanced_view(object):
         print( "Starting {0} jobs using {1} engines".format( tot_jobs,
             len(self.engines_id) ) ) #start message
         if(update > 0):  #if: advancement status
-            import stdin_stdout as sio
+            import io_custom as sio
             while not self.wait(jobs=jobs, timeout=update):
                 status = self.get_queue_status()
                 #get the number of running jobs
