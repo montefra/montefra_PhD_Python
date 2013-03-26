@@ -55,7 +55,7 @@ def parse(argv):
   cosmo.add_argument("--nbins", action="store", type=int, default='500', 
       help='Number of bins in redshift.')
 
-  p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
+  p.add_argument("--fmt", default="%7.6e", action=apc.StoreFmt, nargs='+', 
       help="Format of the output files")
 
   return p.parse_args(args=argv)

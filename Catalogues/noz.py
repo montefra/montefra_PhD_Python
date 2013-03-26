@@ -65,7 +65,7 @@ def parse(argv):
             help="""Lower and upper range of the bins. If the mean is required
             and '%(dest)s' is not set, the limits from the first input file are used""")
 
-    p.add_argument("--mean", action="store", type=apc.OutFile,
+    p.add_argument("--mean", action="store", type=apc.outfile,
             help="""Save the mean in file '%(dest)s'""")
     p.add_argument("--mean-only", action="store_true", 
             help="Only the mean of the histograms is saved")
@@ -79,7 +79,7 @@ def parse(argv):
     cosmo.add_argument("-a", "--area", type=float, action="store", 
             help="Area of the survey in steradians")
 
-    p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+',
+    p.add_argument("--fmt", default="%7.6e", action=apc.StoreFmt, nargs='+',
             help="Format of the output files")
 
     description = """Parameters related to the parallel computation"""

@@ -68,7 +68,7 @@ def parse(argv):
             default=None, help="""If *None* no check on negative redshifts,
             otherwise either skip the corresponding lines or set to 0""")
 
-    p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+',
+    p.add_argument("--fmt", default="%7.6e", action=apc.StoreFmt, nargs='+',
             help="Format of the output files")
 
     p.add_argument("--usecols", action="store", nargs="+", type=int,

@@ -47,7 +47,7 @@ def parse(argv):
     p.add_argument("--zn-file-col", action="store", type=int, nargs=2,
             default=[0,1], help="""Columns in 'noz' containing z and n(z).""")
 
-    p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+',
+    p.add_argument("--fmt", default="%7.6e", action=apc.StoreFmt, nargs='+',
             help="Format of the output files")
 
     description = """Parameters related to the parallel computation"""

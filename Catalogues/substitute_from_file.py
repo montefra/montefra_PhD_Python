@@ -48,7 +48,7 @@ def parse(argv):
 
     p, pandas = apc.pandas_group(p)
  
-    p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', 
+    p.add_argument("--fmt", default="%7.6e", action=apc.StoreFmt, nargs='+', 
         help="Format of the output files. (default: %(default)s)")
 
     description = """Parameters related to the parallel computation"""

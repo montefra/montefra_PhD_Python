@@ -75,7 +75,7 @@ def parse(argv):
 
     p, pandas = apc.pandas_group(p)
 
-    p.add_argument("--fmt", default="%7.6e", action=apc.store_fmt, nargs='+', help="Format of the output files")
+    p.add_argument("--fmt", default="%7.6e", action=apc.StoreFmt, nargs='+', help="Format of the output files")
 
     return p.parse_args(args=argv)
 

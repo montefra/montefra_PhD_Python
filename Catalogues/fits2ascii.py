@@ -62,7 +62,7 @@ def parse(argv):
             Operations permitted for string entry like 'a+b-1': 'a' and 'b' are column
             name and '1' a number.""")
 
-    p.add_argument("--fmt", action=apc.store_fmt, nargs='+', default="%7.6e",
+    p.add_argument("--fmt", action=apc.StoreFmt, nargs='+', default="%7.6e",
             help="Format of the output files.")
 
     description = """Parameters related to the parallel computation"""
