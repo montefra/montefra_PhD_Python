@@ -157,7 +157,7 @@ def mean_std_headers(headers):
 def mean_std_pks(pk):
     """
     do the mean and standard deviation of the power spectra in the input
-    dictionaries
+    dictionary
     Parameters
     ----------
     pk: dict of lists of numpy arrays
@@ -169,11 +169,29 @@ def mean_std_pks(pk):
     dictionaries with the same keys as the input one
     """
     mean, stddev = {}, {}
-
+    for key, value in pk.iteritems():
+        mean[key] = np.mean(value, axis=0)
+        stddev[key] = np.mean(value, axis=0, ddof=1)
     return mean, stddev
 
-def covariance(pk):
-    pass
+def covariance(pk, meanpk):
+    """
+    do the covariance matrix of the power spectra in input
+    dictionary
+    Parameters
+    ----------
+    pk: dict of lists of numpy arrays
+        power spectra
+    meanpk: dict of numpy arrays
+        mean power spectra for the cases in pk
+    output
+    ------
+    covmat: dict of numpy arrays
+        dictionary with the same keys as the input one
+    """
+    covmat = {}
+    for pkk, pkv in pk.iteritems():
+        np.cov(pk, rowvar=0)
 
 if __name__ == "__main__":   #if it's the main
 
@@ -193,18 +211,25 @@ if __name__ == "__main__":   #if it's the main
         if file_exists(args.ofname):
             print("File '{}' exists. Delete or rename it, or use the '--overwrite' option".format(args.ofname))
 
-    #read the files
+    # read the files
     if args.verbose:
         print("Reading the power spectra")
     pk, headers = read_ps(args.ifname)
     
-    #read k and number of modes
+    # read k and number of modes
     k, n_modes = np.loadtxt(args.ifname[0], usecols=[0,-1]).T
 
-    #do the mean and standard deviation of the headers
+    if args.verbose:
+        print("Compute the mean and standard deviations")
+    # do the mean and standard deviation of the headers
     header_mean_std = mean_std_headers(headers)
 
-    #do the mean and standard deviation of the power spectra
+    # do the mean and standard deviation of the power spectra
+    meanpk, stdpk = mean_std_pks(pk)
+
+    if args.verbose:
+        print("Compute the covariance matrix")
+    #do the covariance
 
     exit()
         
