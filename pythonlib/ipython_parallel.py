@@ -43,7 +43,7 @@ class Load_balanced_view(object):
 
     def _continue_serial(self):
         """asks if the user wants to continue in serial mode or quit"""
-        import stdin_stdout as sio
+        import io_custom as sio
         message = "Do you want to continue in serial mode"
         if( sio.yes_or_not( message, 'y' ) ):
             return False  #disable the paraller computation
