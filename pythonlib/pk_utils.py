@@ -60,6 +60,47 @@ class PS_header(object):
         return self.data[2] + alpha**2*self.random[2]
 # end class PS_header(object):
 
+def average_bins(k, pk, n_modes, merge_nbins):
+    """
+    Average the power spectrum 'merge_bins' at a time using 'n_modes' as weights
+    Parameters
+    ----------
+    k, pk, n_modes: 1D arrays
+        wavenumber, power spectrum and number of modes per k-bin
+    merge_bins: int
+        number of k-bins to merge to obtain the output
+    output
+    outk, outpk: 1D arrays:
+        averaged wavenumber and power spectrum in larger k-bins
+    """
+    pk_size = pk.size
+    if k.size != pk_size and n_modes != pk_size:
+        ValueError("k, pk and n_modes must have the same size")
+
+    out_bins = pk_size//merge_nbins  # number of block of size 'merge_nbins'
+    remaining_bins = merge_nbins*out_bins - pk_size
+
+    # convert k, pk and n_modes into a merge_nbins*out_bins 2D array
+    if remaining_bins == 0:
+        k2D = k.reshape([out_bins, merge_nbins])
+        pk2D = pk.reshape([out_bins, merge_nbins])
+        n_modes2D = n_modes.reshape([out_bins, merge_nbins])
+    else:
+        k2D = k[:remaining_bins].reshape([out_bins, merge_nbins])
+        pk2D = pk[:remaining_bins].reshape([out_bins, merge_nbins])
+        n_modes2D = n_modes[:remaining_bins].reshape([out_bins, merge_nbins])
+    
+    #average of k and weighted average of pk along the 1st axis
+    outk = np.average(k2D, axis=1)
+    outpk = np.average(pk2D, axis=1, weights=n_modes2D)
+    if remaining_bins != 0:
+        outk = np.r_[outk, np.average(k[remaining_bins:])] #add the last elements
+        outpk = np.r_[outpk, np.average(pk[remaining_bins:], weights=n_modes[remaining_bins:])] #add the last elements
+    
+    return outk, outpk                  
+
+
+
 #================================================================
 # model power spectrum                                            
 #================================================================
