@@ -276,6 +276,8 @@ def outfile(string):
     """
     if ioc.file_exists(string):
         raise ap.ArgumentTypeError("file '{}' alread exists".format(string))
+    else:
+        return string
 
 # ==========================
 # Action classes and functions
@@ -337,16 +339,16 @@ def file_exists(warning=False, remove=False):
             # Try to open the file name
             to_be_removed = [] #list of non existing file names
             # message to send to the error handling 
-            message = "can't open '%s': %s"
+            message = "can't open '%s'"
             # if only one file name passed
             if isinstance(values, str):
                 if not ioc.file_exists(values):
-                    raise ap.ArgumentTypeError(message % (values, e))
+                    raise ap.ArgumentTypeError(message % (values))
             else:
                 for fn in values:
                     if not ioc.file_exists(fn):
                         if warning is False:
-                            raise ap.ArgumentTypeError(message % (fn, e))
+                            raise ap.ArgumentTypeError(message % (fn))
                         else:
                             print("File '{0}' does not exists".format(fn))
                             to_be_removed.append(fn)
