@@ -45,7 +45,10 @@ def parse(argv):
     """
     p = ap.ArgumentParser(description=description, formatter_class=apc.RawDescrArgDefHelpFormatter)
 
-    p.add_argument("ofname", action="store", help="Output file name")
+    p.add_argument("ofname", action="store", 
+            help="""Output file name. If more that one element in '--norm_sh'
+            is given, the string associated to the various cases is inserted
+            after '%(dest)s.'""")
 
     p.add_argument("ifname", action=apc.file_exists(), nargs='+', 
             help="Input file name(s)")
@@ -55,10 +58,16 @@ def parse(argv):
     p.add_argument("-o", "--overwrite", action="store_true", 
             help="Overwrite the output file name")
 
-    p.add_argument("-c", "--covariance", action='store', 
-            help="Computes and saves the covariance matrix to file '%(dest)s'") 
+    p.add_argument("--before", action="store", help="""Insert the string of
+            selected cases before '%(dest)s' instead of the end of the output
+            file name""")
 
-    p.add_argument( "--norm_sh", nargs="+", action=apc.required_length(1, 4), choices=ns_choices,
+    p.add_argument("-c", "--covariance", action='store', 
+            help="""Computes and saves the covariance matrix to file '%(dest)s'.
+            If more that one element in '--norm_sh' is given, the string
+            associated to the various cases is inserted after '%(dest)s.'""")
+
+    p.add_argument( "--norm_sh", nargs="+", choices=ns_choices,
             default=ns_choices[0], metavar='CHOICES', help="""Cases to work on.
             The part before the '_' regards the power spectrum normalisation,
             the one after the shot noise. The choices are CHOISES={0}. The input
@@ -171,10 +180,10 @@ def mean_std_pks(pk):
     mean, stddev = {}, {}
     for key, value in pk.iteritems():
         mean[key] = np.mean(value, axis=0)
-        stddev[key] = np.mean(value, axis=0, ddof=1)
+        stddev[key] = np.std(value, axis=0, ddof=1)
     return mean, stddev
 
-def covariance(pk, meanpk):
+def covariance(pk):
     """
     do the covariance matrix of the power spectra in input
     dictionary
@@ -182,39 +191,148 @@ def covariance(pk, meanpk):
     ----------
     pk: dict of lists of numpy arrays
         power spectra
-    meanpk: dict of numpy arrays
-        mean power spectra for the cases in pk
     output
     ------
     covmat: dict of numpy arrays
         dictionary with the same keys as the input one
     """
     covmat = {}
-    for pkk, pkv in pk.iteritems():
-        np.cov(pk, rowvar=0)
+    for key, value in pk.iteritems():
+        covmat[key] = np.cov(value, rowvar=0)
+    return covmat
+
+def check_ofiles(ofname, cases, overwrite=False, covfname=None, before=None):
+    """
+    Create and check the output file names for the power spectra and, if give,
+    the covariance matrix
+    Parameters
+    ----------
+    ofname: string
+        file name of the output mean power spectrum, if len(cases)==1, base for
+        the output file names otherwise.
+    cases: list of strings
+        cases for which the mean, standard deviation (and covariance) is to be
+        computed
+    overwrite: bool (optional)
+        overwrite the output files if existing
+    covfname: string
+        file name of the output mean power spectrum, if len(cases)==1, base for
+        the output file names otherwise.
+    before: string (optional)
+        if len(cases)>1, the output file names are created inserting the cases
+        before 'before' instead of appenting to the file name
+
+    output
+    ------
+    ofnames: dict
+        dictionary of output file names for the mean power spectra
+    covfnames: dict
+        only if covfname is not None: dictionary of output file names for the covariances
+    """
+    from io_custom import file_exists
+    class OutputException(Exception):
+        def __init__(self, fname):
+            """get the file name and create a message with it"""
+            string = "File '{}' exists. Delete or rename it, or use the '--overwrite' option"
+            self.string = string.format(fname)
+        def __str__(self):
+            return repr(self.string)
+    def _create_fnames(ofname, cases, before):
+        if len(cases) == 1: # if only one case is provided
+            return {cases[0] : ofname}
+        elif before is None:  # if the case is to be appended to the file name
+            return {c: ofname+c for c in cases}
+        else:
+            return {c: ofname.replace(before, c+before) for c in cases}
+
+    # create the list of output file names
+    ofnames = _create_fnames(ofname, cases, before)
+    if covfname is not None:
+        covfnames = _create_fnames(covfname, cases, before)
+    if not overwrite:  # check if all the files exist
+        all_files = ofnames.values() if (covfname is None) else ofnames.values()+covfnames.values()  # create a unique list of file names
+        for fn in all_files: 
+            if file_exists(fn):
+                raise OutputException(ofname)
+    if covfname is None:
+        return ofnames
+    else:
+        return ofnames, covfnames
+# end def check_ofiles(ofname, cases, overwrite=False, covfname=None, before=None):
+
+def print_pk(ofnames, k, mean, std, n_modes, header=None):
+    """
+    Save the power spectra 'pk' in files 'ofnames'.
+    Parameters
+    ----------
+    ofnames: dict
+        output file names
+    mean: dict
+        mean power spectra
+    std: dict
+        standard deviations
+    k: 1D numpy array
+        wavenumbers of the pk
+    n_modes: 1D numpy array
+        number of modes per k shell
+    header: list of 4 1D numpy arrays (optional)
+        mean and standard deviation of the data and random sums
+    """
+    header_pre = "#\t\tsum(w)\tsum(w^2n(z))\tsum(w^2)\n"
+    header_post= "#\tk\tmean P(k)\tstddev P(k)\tn_modes\n"
+    header_line_start = ["mean_data", "mean_random", "stddev_data", "stddev_random"]
+    header_template = "#{0}\t{1[0]:.4f}\t{1[1]:.4f}\t{1[2]:.4f}\n"
+    fmt = ['%7.6e', '%7.6e', '%7.6e', '%d' ]
+    for key, fvalue in ofnames.iteritems(): #iter through the file names
+        with open(fvalue, 'w') as f:
+            if header is not None: #write the header if not given
+                f.write(header_pre)
+                for hls, h in it.izip(header_line_start, header):
+                    f.write(header_template.format(hls, h))
+            f.write(header_post)
+            np.savetxt(f, np.vstack([k, mean[key], std[key], n_modes]).T, delimiter='\t', fmt=fmt)
+# end def print_pk(ofnames, k, mean, std, n_modes, header=None):
+
+def print_cov(ofnames, cov, k=None):
+    """
+    Save to files the covariance matrices.
+    Parameters
+    ----------
+    ofnames: dict
+        output file names
+    cov: dict
+        covariance matrices
+    k: 1D numpy array (optional)
+        values of k for the covariance matrix. Written as header if provided
+    """
+    for key, fvalue in ofnames.iteritems():
+        with open(fvalue, 'w') as f:
+            f.write("#k: "+"\t".join(['{0:7.6e}'.format(kk) for kk in k])+"\n")
+            np.savetxt(f, cov[key], delimiter='\t', fmt='%7.6e')
 
 if __name__ == "__main__":   #if it's the main
 
     import sys
     args = parse(sys.argv[1:])
 
-
     # check the choices 
+    if isinstance(args.norm_sh, str):
+        args.norm_sh = [args.norm_sh,]
     if 'all' in args.norm_sh:
         args.norm_sh = ns_choices[:-1]
     else:  #get unique elements
         args.norm_sh = list(set(args.norm_sh))
 
-    # check if output file exists
-    if not args.overwrite:
-        from io_custom import file_exists
-        if file_exists(args.ofname):
-            print("File '{}' exists. Delete or rename it, or use the '--overwrite' option".format(args.ofname))
+    # create and check the output files
+    ofnames = check_ofiles(args.ofname, args.norm_sh, overwrite=args.overwrite,
+            covfname=args.covariance, before=args.before)
+    if args.covariance is not None:
+        ofnames, covfnames = ofnames
 
     # read the files
     if args.verbose:
         print("Reading the power spectra")
-    pk, headers = read_ps(args.ifname)
+    pk, headers = read_ps(args.ifname, args.norm_sh)
     
     # read k and number of modes
     k, n_modes = np.loadtxt(args.ifname[0], usecols=[0,-1]).T
@@ -223,13 +341,21 @@ if __name__ == "__main__":   #if it's the main
         print("Compute the mean and standard deviations")
     # do the mean and standard deviation of the headers
     header_mean_std = mean_std_headers(headers)
-
     # do the mean and standard deviation of the power spectra
     meanpk, stdpk = mean_std_pks(pk)
-
     if args.verbose:
-        print("Compute the covariance matrix")
-    #do the covariance
+        print("Print the mean and standard deviations")
+    print_pk(ofnames, k, meanpk, stdpk, n_modes, header=header_mean_std)
+
+    # do the covariance
+    if args.covariance is not None:
+        if args.verbose:
+            print("Compute the covariance matrices")
+        covmat = covariance(pk)
+        if args.verbose:
+            print("Print the covariance matrices")
+        print_cov(covfnames, covmat, k=k)
+
 
     exit()
         
