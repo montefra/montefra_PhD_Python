@@ -51,7 +51,7 @@ def parse(argv):
             help="Format of the output files")
 
     description = """Parameters related to the parallel computation"""
-    p, parallel = apc.parallel_group( p, description=description )
+    p, parallel = apc.parallel_group(p, description=description)
 
     return p.parse_args(args=argv)  
 #end def parse(argv)
