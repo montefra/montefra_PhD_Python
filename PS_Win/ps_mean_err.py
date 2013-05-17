@@ -51,7 +51,7 @@ def parse(argv):
             after '%(dest)s.'""")
 
     p.add_argument("ifname", action=apc.file_exists(), nargs='+', 
-            help="Input file name(s)")
+            help="Input file name(s). The files are ordered, to be able to use 'correct_sh'")
 
     p = apc.version_verbose(p, '0.1')
     
@@ -74,6 +74,16 @@ def parse(argv):
             power spectra are for case '{0[0]}'. If 'all' given, all the cases
             done.""".format(ns_choices))
 
+    p.add_argument("--correct_sh", nargs=3, help="""Corrects the shot noise
+            estimated from the randoms (i.e. for the cases '*_ran')
+            substituting 'P_SN' with 'n_tot/n_redshift * P_SN': 'n_tot' and
+            'n_redshift' are the number of objects that should have redshift
+            and the number of objects with measured redshifts. Those two
+            numbers are in columns '%(dest)s[1]' and '%(dest)s[2]' of file
+            '%(dest)s[0]'. The number of lines in '%(dest)s[0]' must be the
+            same as the number of input files and the order assumed to be the
+            same as the ordered list of files.""")
+
     return p.parse_args(args=argv)
 # end def parse(argv)
 
@@ -93,7 +103,7 @@ def rescale_sn(headers):
     for h in headers:
         yield (h.get_SNrandoms() - h.get_SNdata())/h.get_N2randoms()
 
-def read_ps(fnlist, choises):
+def read_ps(fnlist, choises, sh_correct):
     """
     Reads and saves into lists the header, the second and third colums for the
     input files, and returns them
@@ -103,6 +113,8 @@ def read_ps(fnlist, choises):
         files  to read
     choises: list of strings
         choises for the normalisation and 
+    sh_correct: None or a file name and to integers
+        Files and column in the files to use to correct the shot noise
     output
     ------
     pk: dict of list of 1D numpy arrays
@@ -114,12 +126,17 @@ def read_ps(fnlist, choises):
     headers = []  #PS_header instances
     temppk, temppknsh = [],[]
 
+    #sort the file list
+    fnlist.sort()
+
     #read files and headers
     for fn in fnlist:
         headers.append(PS_header(fn))
         tpk, tpknsh = np.loadtxt(fn, usecols=[1,2]).T
         temppk.append(tpk)
-        temppknsh.append(tpk)
+        temppknsh.append(tpknsh)
+
+    #read the file to correct the shot noise if needed
 
     # ns_choices = ["ran_ran", "ran_dat", "dat_ran", "dat_dat", "ran_nosh", "dat_nosh"]
     # normalisation: randoms; shot noise: random 
@@ -322,6 +339,12 @@ if __name__ == "__main__":   #if it's the main
         args.norm_sh = ns_choices[:-1]
     else:  #get unique elements
         args.norm_sh = list(set(args.norm_sh))
+    # if correct_sh given, add ran_rancorr and/or dat_rancorr if ran_ran and/or dat_ran are present
+    if args.correct_sh is not None:
+        if 'ran_ran' in args.norm_sh:
+            args.norm_sh.append('ran_rancorr')
+        if 'dat_ran' in args.norm_sh:
+            args.norm_sh.append('dat_rancorr')
 
     # create and check the output files
     ofnames = check_ofiles(args.ofname, args.norm_sh, overwrite=args.overwrite,

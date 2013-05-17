@@ -64,7 +64,8 @@ def parse(argv):
 
     smooth.add_argument('--k-fit', action='store', type=float, nargs=2,
             help="""Minimum and maximum wavenumbers to use to compute the mean
-            or do the fit. If not given, use 'k_sub'. Ignored in 'smooth'.""")
+            or do the fit. If not given, use 'k_sub'. If 'smooth' is used,
+            '%(dest)s' must include 'k'.""")
 
     wchoises = ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']
     smooth.add_argument('-w', '--window', action='store', choices=wchoises,
@@ -145,10 +146,18 @@ if __name__ == "__main__":   # if is the main
     if args.mean:
         win[args.k[0]:args.k[1], 1] = win[args.k_fit[0]:args.k_fit[1], 1].mean()
     elif args.smooth:
+        if args.k_fit[0]>args.k[0] or args.k_fit[1]<args.k[1]:
+            print("""When smoothing, substitution can happen only inside the range 
+                    where the smoothing is done""")
+            exit()
         from smooth import smooth1D
         wlen = args.window_len #franz: shorter name
-        win[args.k[0]:args.k[1], 1] = smooth1D(win[args.k[0]:args.k[1], 1],
-                window=args.window, window_len=wlen)[wlen-1:-wlen+1]
+        wsmoothed = smooth1D(win[args.k_fit[0]:args.k_fit[1], 1],
+            window=args.window, window_len=wlen)[wlen-1:-wlen+1]
+        if args.k_fit[1] == args.k[1]:  #if the upper limits are the same
+            win[args.k[0]:args.k[1], 1] = wsmoothed[args.k[0]-args.k_fit[0]:]
+        else:
+            win[args.k[0]:args.k[1], 1] = wsmoothed[args.k[0]-args.k_fit[0]:args.k[1]-args.k_fit[1]]
     elif args.fit:
         # power law fit: y = a*x**b => ln(y) = ln(a) + b*ln(x)
         lnk, lnw = np.log(win[args.k_fit[0]:args.k_fit[1], :2]).T  # convert to log
