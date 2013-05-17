@@ -3,7 +3,6 @@
 #merge window functions in a unique file 
 
 import numpy as np
-import smooth
 
 def parse(argv):
     """
@@ -60,14 +59,15 @@ def parse(argv):
 
     smooth.add_argument('-k', '-k-sub', action='store', type=float, nargs=2,
             default=[-1,-1], help="""Minimum and maximum wavenumbers to
-            substitute. If t""")
+            substitute. If negative numbers are give the minimum and/or maximum
+            of k after merging are used.""")
 
     smooth.add_argument('--k-fit', action='store', type=float, nargs=2,
             help="""Minimum and maximum wavenumbers to use to compute the mean
             or do the fit. If not given, use 'k_sub'. Ignored in 'smooth'.""")
 
     wchoises = ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']
-    smooth.add_argument('-w', '-window', action='store', choices=wchoises,
+    smooth.add_argument('-w', '--window', action='store', choices=wchoises,
             default='hanning', help="Only for 'smooth'. Window type")
     smooth.add_argument('-l', '--window-len', action='store', default=11, type=int, 
             help="Only for 'smooth'. Dimension of the smoothing window; should be an odd integer")
@@ -112,7 +112,6 @@ def unify_win(wins, fkN=0.65):
     k_min = 0.
     win = []   #output total window
     for w in wins:
-        w[:,1] -= noise   #subtract the shot noise
         k = w[:,0]    #get the k
         imin, imax = np.sum(k<k_min), np.sum(k<(fkN*k[-1]))   #get the first and the last bins
         win.extend(w[imin:imax,:])    #add the part of interest of the window function 
@@ -127,24 +126,38 @@ if __name__ == "__main__":   # if is the main
 
     import io_custom as ioc
     # check output file
-    if args.overwrite and ioc.file_exists(args.ofname):
+    if not args.overwrite and ioc.file_exists(args.ofname):
         print("The output file already exists")
         exit()
 
-    win = read_order(args.ifnames) # read the files
+    wins = read_order(args.ifnames) # read the files
+    win = unify_win(wins, fkN=args.fkN)   #unify window functions
 
+    # Check args.k and args.k_fit and substitute the wavenumber with the corresponding index
+    args.k[0] = 0 if args.k[0]==-1 else np.sum(win[:,0]<args.k[0]) 
+    args.k[1] = win.shape[0] if args.k[1]==-1 else np.sum(win[:,0]<args.k[1])
+    if args.k_fit is None:
+        args.k_fit = args.k
+    else:
+        args.k_fit[0] = 0 if args.k_fit[0]==-1 else np.sum(win[:,0]<args.k_fit[0]) 
+        args.k_fit[1] = win.shape[0] if args.k_fit[1]==-1 else np.sum(win[:,0]<args.k_fit[1])
 
-    win = unify_win(wins, fkN=opt.fkN)   #unify window functions
+    if args.mean:
+        win[args.k[0]:args.k[1], 1] = win[args.k_fit[0]:args.k_fit[1], 1].mean()
+    elif args.smooth:
+        from smooth import smooth1D
+        wlen = args.window_len #franz: shorter name
+        win[args.k[0]:args.k[1], 1] = smooth1D(win[args.k[0]:args.k[1], 1],
+                window=args.window, window_len=wlen)[wlen-1:-wlen+1]
+    elif args.fit:
+        # power law fit: y = a*x**b => ln(y) = ln(a) + b*ln(x)
+        lnk, lnw = np.log(win[args.k_fit[0]:args.k_fit[1], :2]).T  # convert to log
+        # use np.linalg.lstsq to solve the equation X C = y
+        lnk = np.vstack([np.ones_like(lnk), lnk]).T # build X adding ones, to get ln(a)
+        lna, b = np.linalg.lstsq(lnk, lnw)[0]  #do the fit
+        win[args.k[0]:args.k[1], 1] = np.exp(lna) * win[args.k[0]:args.k[1], 0]**b 
 
-    if(opt.kav != None):  #substitute every value for k>kav with the mean of the window for those k
-        kindex = (win[:,0]>opt.kav).sum()
-        if(opt.smooth == None):
-            win[-kindex:,1] = np.mean(win[-kindex:,1])
-        else:
-            print("understand how to implement it properly")
-            win[-kindex:,1] = smooth.smooth1D(win[-kindex:,1], window=opt.smooth[0], window_len=int(opt.smooth[1]))[:kindex]
-
-    np.savetxt(args[0], win, fmt='%7.6e', delimiter='\t')
+    np.savetxt(args.ofname, win, fmt='%7.6e', delimiter='\t')
 
     exit()
 
