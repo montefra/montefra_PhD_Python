@@ -103,6 +103,15 @@ def rescale_sn(headers):
     for h in headers:
         yield (h.get_SNrandoms() - h.get_SNdata())/h.get_N2randoms()
 
+def correct_sn(headers, n_obj, n_red):
+    """
+    Given a list of pk headers, and two arrays with the total number of objects
+    and the number of objects with redshifts, returns the correction to
+    subtract from each pk
+    """
+    for h, no, nz in it.izip(headers, n_obj, n_red):
+        yield (no/nz-1) * h.get_SNrandoms()/h.get_N2randoms()
+
 def read_ps(fnlist, choises, sh_correct):
     """
     Reads and saves into lists the header, the second and third colums for the
@@ -113,7 +122,7 @@ def read_ps(fnlist, choises, sh_correct):
         files  to read
     choises: list of strings
         choises for the normalisation and 
-    sh_correct: None or a file name and to integers
+    sh_correct: None or a file name and two integers
         Files and column in the files to use to correct the shot noise
     output
     ------
@@ -137,8 +146,15 @@ def read_ps(fnlist, choises, sh_correct):
         temppknsh.append(tpknsh)
 
     #read the file to correct the shot noise if needed
+    if sh_correct is not None:
+        n_tot, n_redshift = np.loadtxt(sh_correct[0], usecols=sh_correct[1:]).T
+        if n_tot.size != len(fnlist):
+            print("""The number of lines in file {} must be the same as the
+                    number of input power spectra""".format(sh_correct[0]))
+            exit()
+        
 
-    # ns_choices = ["ran_ran", "ran_dat", "dat_ran", "dat_dat", "ran_nosh", "dat_nosh"]
+    # ns_choices = ["ran_ran", "ran_dat", "dat_ran", "dat_dat", "ran_nosh", "dat_nosh", 'ran_rancorr', 'dat_rancorr']
     # normalisation: randoms; shot noise: random 
     if ns_choices[0] in choises:
         pk[ns_choices[0]] = temppk[:]
@@ -157,6 +173,10 @@ def read_ps(fnlist, choises, sh_correct):
     # normalisation: data; shot noise: none
     if ns_choices[5] in choises:
         pk[ns_choices[5]] = [p*rn for p,rn in it.izip(temppknsh, rescale_norm(headers))]
+    if 'ran_rancorr' in choises:
+        pk['ran_rancorr'] = [p-sn for p,sn in it.izip(temppk, correct_sn(headers, n_tot, n_redshift))] 
+    if 'dat_rancorr' in choises:
+        pk['dat_rancorr'] = [(p-sn)*rn for p,sn, rn in it.izip(temppk, correct_sn(headers, n_tot, n_redshift), rescale_norm(headers))] 
 
     return pk, headers
 # end def read_ps(fnlist, choises):
