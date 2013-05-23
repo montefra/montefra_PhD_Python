@@ -53,7 +53,7 @@ def parse(argv):
     p.add_argument("ifname", action=apc.file_exists(), nargs='+', 
             help="Input file name(s). The files are ordered, to be able to use 'correct_sh'")
 
-    p = apc.version_verbose(p, '0.1')
+    p = apc.version_verbose(p, '1')
     
     p.add_argument("-o", "--overwrite", action="store_true", 
             help="Overwrite the output file name")
@@ -347,24 +347,43 @@ def print_cov(ofnames, cov, k=None):
             f.write("#k: "+"\t".join(['{0:7.6e}'.format(kk) for kk in k])+"\n")
             np.savetxt(f, cov[key], delimiter='\t', fmt='%7.6e')
 
+def check_choises(norm_sh, correct_sh=None):
+    """
+    Check the choises about norm_sh and correct_sh from the command line
+    Parameters
+    ----------
+    norm_sh: string or list of strings
+        choises about normalisation and shot noise
+    correct_sh: list
+        if not None, the choises about the correction of the shot noise added
+    output
+    ------
+    norm_sh: list of strings
+        checked choises
+    """
+    # check the choices 
+    if isinstance(norm_sh, str):
+        norm_sh = [norm_sh,]
+    if 'all' in norm_sh:
+        norm_sh = ns_choices[:-1]
+    else:  #get unique elements
+        norm_sh = list(set(norm_sh))
+    # if correct_sh given, add ran_rancorr and/or dat_rancorr if ran_ran and/or
+    # dat_ran are present
+    if correct_sh is not None:
+        if 'ran_ran' in norm_sh:
+            norm_sh.append('ran_rancorr')
+        if 'dat_ran' in norm_sh:
+            norm_sh.append('dat_rancorr')
+    return norm_sh
+
 if __name__ == "__main__":   #if it's the main
 
     import sys
     args = parse(sys.argv[1:])
 
-    # check the choices 
-    if isinstance(args.norm_sh, str):
-        args.norm_sh = [args.norm_sh,]
-    if 'all' in args.norm_sh:
-        args.norm_sh = ns_choices[:-1]
-    else:  #get unique elements
-        args.norm_sh = list(set(args.norm_sh))
-    # if correct_sh given, add ran_rancorr and/or dat_rancorr if ran_ran and/or dat_ran are present
-    if args.correct_sh is not None:
-        if 'ran_ran' in args.norm_sh:
-            args.norm_sh.append('ran_rancorr')
-        if 'dat_ran' in args.norm_sh:
-            args.norm_sh.append('dat_rancorr')
+    #check the choises
+    args.norm_sh = check_choises(args.norm_sh, args.correct_sh)
 
     # create and check the output files
     ofnames = check_ofiles(args.ofname, args.norm_sh, overwrite=args.overwrite,
