@@ -59,7 +59,7 @@ def parse(argv):
             help="Overwrite the output file name")
 
     p.add_argument("--before", action="store", help="""Insert the string of
-            selected cases before '%(dest)s' instead of the end of the output
+            selected cases and a dot before '%(dest)s' instead of the end of the output
             file name""")
 
     p.add_argument("-c", "--covariance", action='store', 
@@ -67,14 +67,14 @@ def parse(argv):
             If more that one element in '--norm_sh' is given, the string
             associated to the various cases is inserted after '%(dest)s.'""")
 
-    p.add_argument( "--norm_sh", nargs="+", choices=ns_choices,
+    p.add_argument( "--norm-sh", nargs="+", choices=ns_choices,
             default=ns_choices[0], metavar='CHOICES', help="""Cases to work on.
             The part before the '_' regards the power spectrum normalisation,
             the one after the shot noise. The choices are CHOISES={0}. The input
             power spectra are for case '{0[0]}'. If 'all' given, all the cases
             done.""".format(ns_choices))
 
-    p.add_argument("--correct_sh", nargs=3, help="""Corrects the shot noise
+    p.add_argument("--correct-sh", nargs=3, help="""Corrects the shot noise
             estimated from the randoms (i.e. for the cases '*_ran')
             substituting 'P_SN' with 'n_tot/n_redshift * P_SN': 'n_tot' and
             'n_redshift' are the number of objects that should have redshift
@@ -83,6 +83,11 @@ def parse(argv):
             '%(dest)s[0]'. The number of lines in '%(dest)s[0]' must be the
             same as the number of input files and the order assumed to be the
             same as the ordered list of files.""")
+
+    p.add_argument("-t", "--total-number", type=int, help="""If given and
+            smaller than the number of input file names, randomly remove
+            enought file, and rows in 'correct_sh', in order to get the the
+            desired number""")
 
     return p.parse_args(args=argv)
 # end def parse(argv)
@@ -112,7 +117,7 @@ def correct_sn(headers, n_obj, n_red):
     for h, no, nz in it.izip(headers, n_obj, n_red):
         yield (no/nz-1) * h.get_SNrandoms()/h.get_N2randoms()
 
-def read_ps(fnlist, choises, sh_correct):
+def read_ps(fnlist, choises, sh_correct, total_number):
     """
     Reads and saves into lists the header, the second and third colums for the
     input files, and returns them
@@ -138,6 +143,14 @@ def read_ps(fnlist, choises, sh_correct):
     #sort the file list
     fnlist.sort()
 
+    # remove some of the files if required
+    if total_number is not None and total_number < len(fnlist):
+        to_remove = np.random.randint(0, high=len(fnlist), #random indeces to remove
+                size=len(fnlist)-total_number)
+        to_remove.sort() #sort it
+        for tr in to_remove[::-1]:  #remove the correspoind indeces
+            fnlist.pop(tr)       #from the bottom of the list
+
     #read files and headers
     for fn in fnlist:
         headers.append(PS_header(fn))
@@ -147,7 +160,13 @@ def read_ps(fnlist, choises, sh_correct):
 
     #read the file to correct the shot noise if needed
     if sh_correct is not None:
-        n_tot, n_redshift = np.loadtxt(sh_correct[0], usecols=sh_correct[1:]).T
+        n_tot, n_redshift = np.loadtxt(sh_correct[0], usecols=[int(i) for i in sh_correct[1:]]).T
+        # try to remove lines if some file has been removed
+        try:
+            n_tot = np.delete(n_tot, to_remove)
+            n_redshift = np.delete(n_redshift, to_remove)
+        except NameError: #if 'to_remove' is not defined, do nothing
+            pass
         if n_tot.size != len(fnlist):
             print("""The number of lines in file {} must be the same as the
                     number of input power spectra""".format(sh_correct[0]))
@@ -280,7 +299,7 @@ def check_ofiles(ofname, cases, overwrite=False, covfname=None, before=None):
         elif before is None:  # if the case is to be appended to the file name
             return {c: ofname+c for c in cases}
         else:
-            return {c: ofname.replace(before, c+before) for c in cases}
+            return {c: ofname.replace(before, c+'.'+before) for c in cases}
 
     # create the list of output file names
     ofnames = _create_fnames(ofname, cases, before)
@@ -375,7 +394,7 @@ if __name__ == "__main__":   #if it's the main
     # read the files
     if args.verbose:
         print("Reading the power spectra")
-    pk, headers = read_ps(args.ifname, args.norm_sh)
+    pk, headers = read_ps(args.ifname, args.norm_sh, args.correct_sh, args.total_number)
     
     # read k and number of modes
     k, n_modes = np.loadtxt(args.ifname[0], usecols=[0,-1]).T
