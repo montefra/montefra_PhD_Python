@@ -251,7 +251,7 @@ def to_int(string):
 def int_or_str(string):
     """
     Check if the input can be converted to int. 
-    If yes returin an integer, otherwise a string
+    If yes returs an integer, otherwise a string
     Parameters
     ----------
     string: string
@@ -357,4 +357,42 @@ def file_exists(warning=False, remove=False):
                         values.remove(tbr)
             setattr(namespace, self.dest, values)
     return FileExists
+
+def multiple_of(multiple, reshape=False):
+    """
+    Check that an argument is given 'N' times multiple
+
+    Parameters
+    ----------
+    multiple: integer
+        the number of arguments must be multiple of this
+    reshape: bool
+        if given and len(values) == N*multiple, the list is reshape to
+        len(value)=N and len(value[i]) =multiple
+
+    output
+    ------
+    MultipleOf class 
+    """
+    class MultipleOf(ap.Action):
+        def __call__(self, parser, args, values, option_string=None):
+            if len(values)%multiple != 0:
+                msg='''The number of argument of "{f}" must be multiple of {m}
+                '''.format(f=self.dest,m=multiple)
+                raise ap.ArgumentTypeError(msg)
+            if reshape:
+                output = [values[multiple*i:multiple*(i+1)] for i in
+                        xrange(len(values)/multiple)]
+            else:
+                output = values
+            setattr(args, self.dest, output)
+    return MultipleOf
+
+
+class Cm2Inch(ap.Action):
+    "convert the input from cm to inces. Useful for matplotlib figure sizes"
+    def __call__(self, parser, namespace, values, option_string=None):
+        from myplotmodule import inc2cm
+        values = [v/inc2cm for v in values]
+        setattr(namespace, self.dest, values)
 
