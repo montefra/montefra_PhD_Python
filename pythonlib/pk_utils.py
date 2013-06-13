@@ -16,14 +16,27 @@ class PS_header(object):
     get alpha, normalisation and shot noise
     Parameters
     ----------
-    fname: string
+    f: string or file object
         name of the power spectrum file 
     """
-    def __init__(self, fname):
-        with open(fname, 'r') as f: 
-            self.data = f.readline()  #first line ignored
-            self.data = [float(s) for s in f.readline().split()[1:]]
-            self.random = [float(s) for s in f.readline().split()[1:]]
+    def __init__(self, f):
+        def _read(fo):
+            """
+            read the interesting parts from the file object fo
+            """
+            self.data = fo.readline()  #first line ignored
+            self.data = [float(s) for s in fo.readline().split()[1:]]
+            self.random = [float(s) for s in fo.readline().split()[1:]]
+
+        try:
+            with open(f, 'r') as fo: 
+                _read(fo)
+        except TypeError: # if it is a file object
+            initial_position = f.tell()  # get the current file position
+            f.seek(0)  # go back to the beginning of the file
+            _read(f)
+            f.seek(initial_position) # put back the file in the previous position
+
 
     def get_alpha(self):
         """
@@ -185,7 +198,7 @@ def convolve(pk, wij, k=None, wG=None):
         NxM matrix with the actual window matrix
     k: list of two 1D arrays
         if ps.size == L, then k[0].size==L, k[1].size==M.
-        `ps` is interpolated in k[1] 
+        `pk` is interpolated in k[1] 
     wG: list of two 1D arrays
         W0j, G02i: if given the integral constrain computed
         
