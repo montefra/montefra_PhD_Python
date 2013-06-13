@@ -129,6 +129,8 @@ def read_ps(fnlist, choises, sh_correct, total_number):
         choises for the normalisation and 
     sh_correct: None or a file name and two integers
         Files and column in the files to use to correct the shot noise
+    total_number:
+        number of filse to use. 'fnlist' randomly subsampled
     output
     ------
     pk: dict of list of 1D numpy arrays
@@ -185,7 +187,8 @@ def read_ps(fnlist, choises, sh_correct, total_number):
         pk[ns_choices[2]] = [p*rn for p,rn in it.izip(temppk, rescale_norm(headers))]
     # normalisation: data; shot noise: data
     if ns_choices[3] in choises:
-        pk[ns_choices[3]] = [(p+sn)*rn for p,rn, sn in it.izip(temppk, rescale_norm(headers), rescale_sn(headers))]
+        pk[ns_choices[3]] = [(p+sn)*rn for p,rn, sn in it.izip(temppk,
+            rescale_norm(headers), rescale_sn(headers))]
     # normalisation: randoms; shot noise: none
     if ns_choices[4] in choises:
         pk[ns_choices[4]] = temppknsh[:]

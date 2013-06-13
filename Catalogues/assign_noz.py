@@ -32,8 +32,8 @@ def parse(argv):
     p.add_argument("noz", action="store", type=ap.FileType('r'), 
             help="File containing a table of z, n(z)")
 
-    p.add_argument("ifname", action="store", nargs='+', type=ap.FileType('r'),
-            help="Input file name(s), containing z in one of the columns")
+    p.add_argument("ifname", nargs='+', action=apc.file_exists(),
+            help="""Input file name(s), containing z in one of the columns""")
 
     p = apc.version_verbose( p, '1' )
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":   #if it's the main
 
         #submit the jobs and save the list of jobs
         import os
-        runs = [ parallel_env.apply( assign_noz, os.path.abspath(fn.name),
+        runs = [ parallel_env.apply( assign_noz, os.path.abspath(fn),
             interp_noz, **vars(args) ) for fn in args.ifname ]
 
         if args.verbose :   #if some info is required
