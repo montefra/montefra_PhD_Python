@@ -89,6 +89,31 @@ def parse(argv):
     return p.parse_args(args=argv)
 # end def parse(argv)
 
+def read_file(fname):
+    """
+    read the file 'fname' saving the full header, the power spectrum table and the content of the header.
+    Parameters
+    ----------
+    fname: string
+        file name
+    output
+    ------
+    full_header: list
+        full header from the file
+    pk: ndarray
+        power spectrum table
+    header: PS_header object
+        actual content of the header
+    """
+    #read the file name and the header
+    with open(fname, 'r') as f:
+        header_lines = mf.n_lines_comments(f) #get the size of the header
+        full_header = [f.readline() for i in xrange(header_lines)] #save the header as it is
+        pk = np.loadtxt(f)  #read the power spectrum
+        header = PS_header(f) # get the interesting parts of from the header
+
+    return full_header, pk, header
+
 def read_resc_print(fname, choises, sh_correct=None, before=None,
         overwrite=False, skip=False, fmt='%7.6e'):
     """
@@ -108,12 +133,8 @@ def read_resc_print(fname, choises, sh_correct=None, before=None,
     fmt: string or list of strings
         format for np.savetxt
     """
-    #read the file name and the header
-    with open(fname, 'r') as f:
-        header_lines = mf.n_lines_comments(f) #get the size of the header
-        full_header = [f.readline() for i in xrange(header_lines)] #save the header as it is
-        pk = np.loadtxt(f)  #read the power spectrum
-        header = PS_header(f) # get the interesting parts of from the header
+    
+    full_header, pk, header = read_file(fname)
 
     SN_resc = list(ps_me.rescale_sn([header,]))  #to add to change shot noise
     N_resc = list(ps_me.rescale_norm([header,])) #to multiply to rescale amplitude
