@@ -80,6 +80,8 @@ def cselect(f, constraint, **kwargs):
     +fmt: format of the output file
     """
     ofile = mf.create_ofile_name(f, **kwargs) # create the output file name
+    if ofile is None:  #skip existing files if "skip" option used
+        return None 
     if kwargs['verbose']:
         print("Processing file '{}'".format(f))
 

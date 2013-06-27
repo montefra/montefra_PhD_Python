@@ -139,7 +139,7 @@ def percentile(a, weights=None, perc=np.array([16.,84.])):
 
   return output
 
-def gausfit(x,y, mu_zero=False):
+def gaussfit(x,y, mu_zero=False):
   """Given x and y computes the gaussian fit, 
   transforming the gaussian into a polinomial
   "p(x) = p[0] * x**deg + ... + p[deg]"
