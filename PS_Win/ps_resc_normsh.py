@@ -44,9 +44,8 @@ def parse(argv):
     """
     import argparse_custom as apc
     
-    description = """    Change the mean and/or the amplitude of the input
-    files
-    from the same FFT grid and in the wavenumbers. The structure of the input 
+    description = """    Change the shot noise and/or the amplitude of the input
+    files. The structure of the input 
     files must be like the following:
         # 	 sum(w) 	 sum(w^2n(z)) 	 sum(w^2)
         #data	 ###             ###             ###   
