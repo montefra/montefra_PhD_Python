@@ -1,6 +1,8 @@
 """collection of functions that enable parallel computation using the parallel
 environment in IPython"""
 
+from IPython.parallel import Client, error
+
 class Load_balanced_view(object):
     """class that implements the initialisation of a ipython parallel
     load_ballance_view performing some check. It also execute allows to execute
@@ -24,7 +26,6 @@ class Load_balanced_view(object):
 
         self.do_parallel = True   #everything ok 
         try:  #try to import Client
-            from IPython.parallel import Client, error
             if client != None:
                 self.c = client
             else:
@@ -72,14 +73,16 @@ class Load_balanced_view(object):
         block: bool
             whether or not to wait until done to return. default: True
         """
-        if isinstance(code, basestring): # if it's a string
+        #Six: Python 2 and 3 Compatibility Library
+        from six import string_types  #appropriate string type
+        if isinstance(code, string_types): # if it's a string
             code = [code,]  # convert to list
         # execute the required commands 
         # (better to do in block mode, avoids errors if command is slow)
         for te in code:
             try:
                 self.dview.execute(te, block=block)
-            except error.CompositeError, e:  # if an error occurs, print a single one, not one per engine
+            except error.CompositeError as e:  # if an error occurs, print a single one, not one per engine
                 e.raise_exception()
 
     def push(self, variables):
