@@ -6,11 +6,18 @@ import itertools as it
 import my_functions as mf
 
 #formatter_class that allows raw dextription and argument default
-
 class RawDescrArgDefHelpFormatter(ap.RawDescriptionHelpFormatter,
         ap.ArgumentDefaultsHelpFormatter):
     """
     Enable features of 'RawDescriptionHelpFormatter' and 'ArgumentDefaultsHelpFormatter' united
+    1) both description and epilog are already correctly formatted and should not be line-wrapped
+    2) automatically adds information about default values to each of the argument help messages
+    """
+#formatter_class that allows raw text and argument default
+class RawTextArgDefHelpFormatter(ap.RawTextHelpFormatter,
+        ap.ArgumentDefaultsHelpFormatter):
+    """
+    Enable features of 'RawTextHelpFormatter' and 'ArgumentDefaultsHelpFormatter' united
     1) both description and epilog are already correctly formatted and should not be line-wrapped
     2) automatically adds information about default values to each of the argument help messages
     """
@@ -320,6 +327,40 @@ def required_length(nmin,nmax):
                 raise ap.ArgumentTypeError(msg)
             setattr(args, self.dest, values)
     return RequiredLength
+
+def required_range(nmin,nmax):
+    """
+    Check if the values of the arguments are withing the given limits
+    Make sure that the 'type' is numeric (not string)
+
+    Parameters
+    ----------
+    nmin, nmax: numbers
+        minimum and maximum values for the arguments
+
+    output
+    ------
+    RequredRange class
+    """
+    def check_value(v, nmin, nmax):
+        """Check that nmin>=v>=nmax
+        Throw a ArgumentTypeError execption if this is not true
+        """
+        if i<nmin and i>nmax:
+            msg='''argument "{f}" requires numbers between {nmin}
+            and {nmax} '''.format(f=self.dest,nmin=nmin,nmax=nmax)
+            raise ap.ArgumentTypeError(msg)
+
+    class RequiredRange(ap.Action):
+        def __call__(self, parser, args, values, option_string=None):
+            try:   # assume that values is a list and loop trough it
+                for v in values:
+                    check_value(v, nmin, nmax)
+            except TypeError:  #if it's not a list, pass the value directly
+                check_value(values, nmin, nmax)
+
+            setattr(args, self.dest, values)
+    return RequiredRange
 
 def file_exists(warning=False, remove=False):
     """

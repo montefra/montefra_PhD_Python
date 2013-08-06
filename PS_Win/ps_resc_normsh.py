@@ -61,8 +61,8 @@ def parse(argv):
 
     p = apc.version_verbose(p, '1')
 
-    p.add_argument("--before", action="store", help="""Insert the string of
-            selected cases and a dot before '%(dest)s' instead of the end of the output
+    p.add_argument("--before", action="store", help="""Insert a dot and the string of
+            selected cases before '%(dest)s' instead of the end of the output
             file name""")
 
     p, group = apc.overwrite_or_skip(p)
@@ -147,7 +147,7 @@ def read_resc_print(fname, choises, sh_correct=None, before=None,
         if before is None:
             ofile = fname+'.'+c
         else:
-            ofile = fname.replace(before, c+'.'+before)
+            ofile = fname.replace(before, '.'+c+before)
         #check if output file exists
         if ioc.file_exists(ofile):
             if overwrite is False:

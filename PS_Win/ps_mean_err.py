@@ -58,8 +58,8 @@ def parse(argv):
     p.add_argument("-o", "--overwrite", action="store_true", 
             help="Overwrite the output file name")
 
-    p.add_argument("--before", action="store", help="""Insert the string of
-            selected cases and a dot before '%(dest)s' instead of the end of the output
+    p.add_argument("--before", action="store", help="""Insert a dot and the string of
+            selected cases before '%(dest)s' instead of the end of the output
             file name""")
 
     p.add_argument("-c", "--covariance", action='store', 
@@ -147,8 +147,9 @@ def read_ps(fnlist, choises, sh_correct, total_number):
 
     # remove some of the files if required
     if total_number is not None and total_number < len(fnlist):
-        to_remove = np.random.randint(0, high=len(fnlist), #random indeces to remove
-                size=len(fnlist)-total_number)
+        to_remove = np.arange(len(fnlist)) # get all the numbers
+        np.random.shuffle(to_remove)  #shuffle the list
+        to_remove = to_remove[:len(fnlist)-total_number]  #take only the first elements
         to_remove.sort() #sort it
         for tr in to_remove[::-1]:  #remove the correspoind indeces
             fnlist.pop(tr)       #from the bottom of the list
@@ -302,7 +303,7 @@ def check_ofiles(ofname, cases, overwrite=False, covfname=None, before=None):
         elif before is None:  # if the case is to be appended to the file name
             return {c: ofname+c for c in cases}
         else:
-            return {c: ofname.replace(before, c+'.'+before) for c in cases}
+            return {c: ofname.replace(before, '.'+c+before) for c in cases}
 
     # create the list of output file names
     ofnames = _create_fnames(ofname, cases, before)

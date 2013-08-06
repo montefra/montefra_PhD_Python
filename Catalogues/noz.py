@@ -8,7 +8,7 @@ The routine can also be used to create simple histograms from single columns of 
 
 import my_functions as mf
 import numpy as np
-#import pandas as pd
+import pandas as pd
 
 def parse(argv):
     """
@@ -62,13 +62,19 @@ def parse(argv):
     p.add_argument("-n", "--nbins", action="store", type=int, default='50', 
             help="Number of bins per histogram.")
     p.add_argument("--range", action="store", nargs=2, type=float, 
-            help="""Lower and upper range of the bins. If the mean is required
-            and '%(dest)s' is not set, the limits from the first input file are used""")
+            help="""Lower and upper range of the bins. Computed from the first
+            file if any of the following are required: 
+                i) the mean; 
+                ii) n(z) [so the area needs to be computed];
+                iii) pandas and chunks
+            """)
 
     p.add_argument("--mean", action="store", type=apc.outfile,
             help="""Save the mean in file '%(dest)s'""")
     p.add_argument("--mean-only", action="store_true", 
             help="Only the mean of the histograms is saved")
+
+    p, pandas = apc.pandas_group(p)
 
     description="""
     If the area of the survey is given, the effective volume per bin is
@@ -113,7 +119,10 @@ hist_doc ={
         string with the operation to execute
     +verbose: verbose mode [True|False] 
     +nbins: number of bins for the histogram
-    +range: lower and upper limit of the histogram""",
+    +range: lower and upper limit of the histogram
+    +pandas: use pandas for the input
+    +chunks: chunksize in pandas.read_table""",
+
 
     'kwargs_file': """+replace: replace string *replace[0]* with *replace[1]* in f.name
     +insert: insert string *insert[0]* before *insert[1]* in f.name
@@ -131,6 +140,91 @@ def format_docstring(dic_hd):
     return wrapper
 
 #-------
+#get the desired column(s) of the input catalogue
+def get_colums(cat, hdata, weight, use_pandas):
+    """ gets the (piece of the) catalogue and returns the desired columns 
+
+    Parameters
+    ----------
+    cat: numpy ndarray or pandas dataframe
+        catalogue from which to extract
+    hdata: None, int or string
+        use column *int* or evaluate *string* to get the data to feed to the
+        histogram. If *None* only one column has been read in
+    weight: weights to use when creating the histogram. Can be a int or a
+        string with the operation to execute
+    use_pandas: bool
+        use pandas for the input
+
+    Output
+    ------
+    values: 1D numpy array or pandas Series
+        values to use to create the histogram
+    weights: 1D numpy array or pandas Series
+        values to use as weights in the histogram
+
+    """
+    if hdata is None:
+        values = cat[:]
+    elif isinstance(hdata, (int, long)):
+        if use_pandas:
+            values = cat[hdata]
+        else:
+            values = cat[:,hdata]
+    else:
+        values = eval(hdata)
+
+    if weight is None:
+        weights = None
+    elif isinstance(weight, (int, long)):
+        if use_pandas:
+            weights = cat[weight]
+        else:
+            weights = cat[:,weight]
+    else:
+        weights = eval(weight)
+
+    # if a boolean expression is give to estimate the weights, 
+    # convert the bool array to int (True=1, False=0)
+    if weights is not None and weights.dtype is np.dtype('bool'):
+        weights = weights.astype(int)
+
+    return values, weights
+
+@format_docstring(hist_doc)
+def get_range(f, readcols, hdata, use_pandas, nchunks):
+    """get the minimum and maximum from the columns of the file
+    {common_params}
+    use_pandas: bool
+        use pandas for the input
+    nchunks: int
+        chunksize in pandas.read_table
+    output
+    ------
+    crange: list
+        minimum and maximum in the column
+    """
+    if use_pandas:
+        if nchunks is None:
+            cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f),
+                    sep='\s')[readcols]
+            values, _ = get_colums(cat, hdata, None, use_pandas)
+            return [np.min(values), np.max(values)]
+        else:
+            chunks = pd.read_table(f, header=None, sep='\s',
+                    skiprows=mf.n_lines_comments(f), chunksize=nchunks)
+            cmin, cmax = [],[]  #contain minimum and maximum of the 
+            for cat in chunks:  #loop over the chunks
+                values, _ = get_colums(cat[readcols], hdata, None, use_pandas)
+                cmin.append(np.min(values))
+                cmax.append(np.max(values))
+            return [np.min(cmin), np.max(cmax)]
+    else:
+        cat = np.loadtxt(f, usecols=readcols)
+        values, _ = get_colums(cat, hdata, None, use_pandas)
+        return [np.min(values), np.max(values)]
+
+#-------
 # create and return and/or save histograms
 @format_docstring(hist_doc)
 def hist_return(f, readcols, hdata, **kwargs):
@@ -146,32 +240,36 @@ def hist_return(f, readcols, hdata, **kwargs):
 
     if kwargs['verbose']:
         print("Process file '{}'".format(f))
-    cat = np.loadtxt(f, usecols=readcols)
-    #cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f),
-    #        sep='\s') 
 
-    #check the data
-    if hdata is None:
-        values = cat[:]
-    elif isinstance(hdata, (int, long)):
-        values = cat[:,hdata]
+    use_pandas = kwargs.get('pandas', False)
+    hweights = kwargs.get('weight', None)
+
+    if use_pandas:
+        nchunks = kwargs.get('chunks', None)
+        if nchunks is None:
+            cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f),
+                    sep='\s')[readcols]
+            values, weights = get_colums(cat, hdata, hweights, use_pandas)
+            hist, bin_edges = np.histogram(values, bins=kwargs['nbins'],
+                    range=kwargs['range'], weights=weights)
+        else:
+            chunks = pd.read_table(f, header=None, sep='\s',
+                    skiprows=mf.n_lines_comments(f), chunksize=nchunks)
+            for cat in chunks:  #loop over the chunks
+                values, weights = get_colums(cat[readcols], hdata, hweights, use_pandas)
+                temphist, bin_edges = np.histogram(values, bins=kwargs['nbins'],
+                        range=kwargs['range'], weights=weights)
+                #sum all the histogram as they are created
+                try:
+                    hist += temphist
+                except NameError:
+                    hist = np.copy(temphist)
     else:
-        values = eval(hdata)
-    #check the weights
-    if kwargs['weight'] is None:
-        weights = None
-    elif isinstance(kwargs['weight'], (int, long)):
-        weights = cat[:,kwargs['weight']]
-    else:
-        weights = eval(kwargs['weight'])
+        cat = np.loadtxt(f, usecols=readcols)
+        values, weights = get_colums(cat, hdata, hweights, use_pandas)
+        hist, bin_edges = np.histogram(values, bins=kwargs['nbins'],
+                range=kwargs['range'], weights=weights)
 
-    # if a boolean expression is give to estimate the weights, 
-    # convert the bool array to int (True=1, False=0)
-    if weights is not None and weights.dtype is np.dtype('bool'):
-        weights = weights.astype(int)
-
-    hist, bin_edges = np.histogram(values, bins=kwargs['nbins'],
-            range=kwargs['range'], weights=weights)
     return hist, (bin_edges[1:]+bin_edges[:-1])/2., bin_edges 
 
 @format_docstring(hist_doc)
@@ -275,27 +373,6 @@ def hist_ndensity_save(f, readcols, hdata, volume_z, **kwargs):
     hist_ndensity_save_return(f, readcols, hdata, volume_z, **kwargs)
     return None
 
-@format_docstring(hist_doc)
-def get_range(f, readcols, hdata):
-    """get the minimum and maximum from the columns of the file
-    {common_params}
-    output
-    ------
-    crange: list
-        minimum and maximum in the column
-    """
-    cat = np.loadtxt(f, usecols=readcols)
-    #cat = pd.read_table(f, header=None, skiprows=mf.n_lines_comments(f),
-    #        sep='\s') 
-
-    #check the data
-    if hdata is None:
-        values = cat[:]
-    elif isinstance(hdata, (int, long)):
-        values = cat[:,hdata]
-    else:
-        values = eval(hdata)
-    return [np.min(cat), np.max(cat)]
 
 def select_hist_function(mean, mean_only, redshift_volumes):
     """
@@ -354,7 +431,7 @@ def effective_volume(z_edges, area, cosmology):
     # compute the effective volumes
     return dis.effective_volume_sr_z(z_edges) * area
 
-def parse_operations(column, weight):
+def parse_operations(column, weight, use_pandas):
     """
     parse the column and weight entry, return a list of columns to read and,
     if any, the operations to perform for the entries and weights of the hists
@@ -365,6 +442,8 @@ def parse_operations(column, weight):
         the input of the histogram
     weight: int or string
         same as before, but for the weights
+    use_pandas: bool
+        use pandas or numpy
     output
     ------
     usecols: list of int
@@ -380,56 +459,99 @@ def parse_operations(column, weight):
         string to *eval* if *weight* is string 
 
     example:
-        parse_operations(1, None) --> [1,], None, None #only one column to read: data
-        parse_operations(1, 3) --> [1,3], 0, 1 # data and weight to read in.
+        parse_operations(1, None, True/False) --> [1,], None, None #only one column to read: data
+
+        parse_operations(1, 3, False) --> [1,3], 0, 1 # data and weight to read in.
             # the '0' entry in the read array is data, the '1' is weight
-        parse_operations('c1+c2-1', None) --> [1,2,3], 'cat[:,0]+cat[:,1]-1', None
-        parse_operations('c1+c2-1', 3) --> [1,2,3], 'cat[:,0]+cat[:,1]-1', 2
+        parse_operations(1, 3, True) --> [1,3], 1, 3 # data and weight to read in.
+
+        parse_operations('c1+c2-1', None, False) --> [1,2], 'cat[:,0]+cat[:,1]-1', None
+        parse_operations('c1+c2-1', None, True) --> [1,2], 'cat[:,1]+cat[:,2]-1', None
+
+        parse_operations('c1+c2-1', 3, False) --> [1,2,3], 'cat[:,0]+cat[:,1]-1', 2
             # three columns to read, the data are the operation in the string,
             # the weight the third entry in the read array
-        parse_operations('c1+c2-1', 'c4*3+c5') --> [1,2,4,5], 'cat[:,0]+cat[:,1]-1', 
-                'cat[:,2]*3+cat[:,4]'
+        parse_operations('c1+c2-1', 3, True) --> [1,2,3], 'cat[:,1]+cat[:,2]-1', 3
+
+        parse_operations('c1+c2-1', 'c4*3+c5', False) --> 
+                [1,2,4,5], 'cat[:,0]+cat[:,1]-1', 'cat[:,2]*3+cat[:,4]'
             # four columns to read, the data and weight are the operation in
             # the first and second strings, with respect to the read array
+        parse_operations('c1+c2-1', 'c4*3+c5', True) --> 
+                [1,2,4,5], 'cat[:,1]+cat[:,2]-1', 'cat[:,4]*3+cat[:,5]'
     """
     # column in input file is cat[#] if using pandas and cat[:,#] if numpy
-    cataloguestr = "cat[:,\\1]"
-    #cataloguestr = "cat[\\1]"
+    if use_pandas:
+        cataloguestr = "cat[\\1]"
+    else:
+        cataloguestr = "cat[:,\\1]"
 
     import re
-    pattern = re.compile(r"c(\d+?)")  # re pattern with the columns name
-    # work with the columns
+    pattern = re.compile(r"c(\d+)")  # re pattern with the columns name
+
+    #get the desired column(s) to do the histogram
     if isinstance(column, (int, long)):
-        usecols = [column,]
-        histdata = 0
-        temp = [0,] # index of the histogram data once read in
+        usecols=[column,]
+        if use_pandas:
+            histdata = column
+            after_read_cols = usecols[:] #index of the columns once read in
+        else:
+            histdata = 0
+            after_read_cols = [histdata,]
     else:
         datamatches = pattern.findall(column)
         usecols = list(np.unique([int(m) for m in datamatches])) # unique indeces to read
-        temp = range(len(usecols))
-        # replace the columns required with the ones read in
-        for o,n in zip(usecols, temp):
-            column = column.replace('c'+str(o), 'c'+str(n))
+        if use_pandas:
+            after_read_cols = usecols[:]
+        if not use_pandas:
+            after_read_cols = range(len(usecols))
+            # replace the columns required with the ones read in
+            for o,n in zip(usecols, after_read_cols):
+                column = column.replace('c'+str(o), 'c'+str(n))
         # change the from the column number in file to the column number in the 
         # read numpy array or pandas DataFrame
         histdata = pattern.sub(cataloguestr, column)
+
         
-    # do the same with the weights
+    # get the desired column(s) to do the weights
     if weight is None:
         histweight = None
-        if histdata == 0:
+        if isinstance(histdata, (int, long)):
             histdata = None
     elif isinstance(weight, (int, long)):
-        usecols.append(weight)
-        histweight = temp[-1]+1
+        #if the weight column has already been included into the data
+        if weight in usecols:
+            windex = usecols.index(weight)
+            if use_pandas:
+                histweight = usecols[windex]
+            else:
+                histweight = after_read_cols[windex]
+        else:  #new colum
+            usecols.append(weight)
+            if use_pandas:
+                histweight = weight
+            else:
+                histweight = after_read_cols[-1]+1
     else:
         weightmatches = pattern.findall(weight)
         wusecols = list(np.unique([int(m) for m in weightmatches])) # unique indeces to read
-        usecols.extend(wusecols)
-        temp = np.arange(len(wusecols))+temp[-1]+1 # index of the hist weight once read in
-        # replace the columns required with the ones read in
-        for o,n in zip(wusecols, temp):
-            weight = weight.replace('c'+str(o), 'c'+str(n))
+        #check if columns already included ore not
+        if use_pandas:  #here simply add the new ones
+            for wuc in wusecols:
+                if wuc not in usecols:
+                    usecols.append(wuc)
+        else: #if numpy used is a bit more complex
+            for wuc in wusecols:
+                if wuc in usecols:
+                    windex = usecols.index(wuc)
+                    tempw= after_read_cols[windex]
+                else:
+                    usecols.append(wuc)
+                    after_read_cols.append(after_read_cols[-1]+1)
+                    tempw = after_read_cols[-1]
+                #substitute the input column with the one in the numpy array
+                weight = weight.replace('c'+str(wuc), 'c'+str(tempw))
+
         # change the from the column number in file to the column number in the 
         # read numpy array or pandas DataFrame
         histweight = pattern.sub(cataloguestr, weight)
@@ -452,14 +574,15 @@ if __name__ == "__main__":   #if it's the main
     # parse the column and weight arguments and return the list of columns
     # to read, the index or string to create the data and weight for the 
     # histograms
-    usecols, histdata, args.weight= parse_operations(args.column, args.weight)
+    usecols, histdata, args.weight= parse_operations(args.column, args.weight, args.pandas)
 
     # if the mean or the volume of the redshift bins is required 
     # get the range from the first file, if not passed in the command line
-    if args.range is None and (args.mean or args.area is not None):
-        if args.verbose:
-            print("Extract the range from the first file")
-        args.range = get_range(ifname[0], args.column)
+    if args.range is None:
+        if args.mean or args.area is not None or (args.pandas and args.chunks is not None):
+            if args.verbose:
+                print("Extract the range from the first file")
+            args.range = get_range(args.ifname[0], usecols, histdata, args.pandas, args.chunks)
 
     # if the number density required, compute the effective volume for each
     # redshift bin

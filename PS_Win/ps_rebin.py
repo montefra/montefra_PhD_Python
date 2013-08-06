@@ -114,7 +114,7 @@ def rebin(fname, mbins, **kwargs):
     # separate the power spectrum into the various components
     k, pk, pksn, nmodes = ps.T  
     # reshape to simplify rebinning
-    finalbins = ps.shape[0]/mbins
+    finalbins = ps.shape[0]//mbins
     kr = k.reshape([finalbins, mbins])
     pkr = pk.reshape([finalbins, mbins])
     pksnr = pksn.reshape([finalbins, mbins])

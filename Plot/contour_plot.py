@@ -44,7 +44,7 @@ def parse(argv):
     p.add_argument("ifroot", action="store", nargs='+', 
             help="Input file name(s), containing z in one of the columns")
 
-    p = apc.version_verbose(p, '1')
+    p = apc.version_verbose(p, '2')
 
     # file related options
     pf = p.add_argument_group(description='Input-output file options')
@@ -120,8 +120,8 @@ def parse(argv):
     pl = p.add_argument_group(description='Legend options')
 
     pl.add_argument("--legend", nargs='+', help="""Legend tags. If given, the
-    number of elements must be the same as the number of input root and in the
-    same order and all the other legend parameters are considered""")
+        number of elements must be the same as the number of input root and in
+        the same order""")
 
     pl.add_argument("--loc", type=apc.int_or_str, default=0,
             help='Legend location (see matplotlib legend help)')

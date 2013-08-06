@@ -6,52 +6,131 @@ import numpy as np  #numpy
 import smooth as sm  #import the gaussian kernel density estimate function 
 import sys
 
-def get_paramnames(file_roots, params, ext=".paramnames", verbose=False):
-    """For each file 'file_roots+ext' finds the indeces of the elements in params
-    that matcht what is stored in the first columns of the parametere file names
+class ContourError(Exception):
+    """exception in this module and Plot/contour_plot.py"""
+    def __init__(self, string):
+        self.string=string
+    def __str__(self):
+        return repr(self.string)
 
+def _check_type(string_iter):
+    """
+    Check if froot is a string or an iterable with a 'append' method (in this order)
+    Returns boolean if it is a string or like a list
     Parameters
     ----------
-    file_roots: list
+    froots: list, string
         list of file root of the chain to be plotted
-    params: list
-        name of the parameters of interest as in the first column of the
-        parameter name files
-    ext: string (optional)
-        extention of the parameters file
-    verbose: bool (optional)
-        more output
     output
     ------
-    parindex: list
-        len(file_roots) list, with len(parindex[i])==len(params) and 
-        parindex[i][j] = [index_in_file, first_column_string, second_column_string]
-    
+    is_string: bool
+    is_listlike: bool
     """
-    parindex = []
+    is_string = False
+    is_listlike = False
 
-    for fr in file_roots: #loop throught the file list
-        with open(fr+ext, 'r') as f: # open each file
+    import six
+    if isinstance(string_iter, six.string_types):
+        is_string=True
+    elif hasattr(string_iter, 'append'):
+        is_listlike = True
+    else:
+        raise TypeError("Only string and list-like object accepted")
+
+    return is_string, is_listlike
+
+def _get_paramnames(fname, params=None, verbose=False, skip=False):
+    """ 
+    Read the parameter file name 'fname'. 
+    If fname does not exist and skip==True return None
+    Parameters
+    ----------
+    fname: string
+        file name
+    params: list (optional)
+        name of the parameters of interest as in the first column of the
+        parameter name files. If None all parameters saved
+    verbose: bool (optional)
+        more output
+    skip: bool (optional)
+        skip non existing files
+    output
+    ------
+    parindex: list of lists
+        parindex[i] = [index_in_file, first_column_string, second_column_string]
+        with len(parindex)==len(params) or the whole file
+    """
+    try:
+        with open(fname, 'r') as f: # open each file
             if(verbose == True):
                 print "Reading file {}".format(f.name)
             temp = f.readlines()   # and read it all
-        temp_parindex = []
+    except IOError as e:
+        if skip:
+            return None
+        else:
+            raise IOError(e)
+
+    #save the paramnames and theid index into a list of lists
+    parindex = []
+    if params is None:
+        for i, mn in enumerate(temp):
+            tmn = [m.strip() for m in mn.split('\t')]
+            parindex.append([i, tmn[0], tmn[1]]) 
+    else:
         for p in params:  #loop the parameters to be used
             for i, mn in enumerate(temp): #loop the lines of the parameter file
                 # split each line to separate the small name and the latex name
                 tmn = [m.strip() for m in mn.split('\t')]
                 if(p==tmn[0].strip('*')):  # shave space and '*'
                     # save the index and the latex name. 
-                    temp_parindex.append([i, tmn[0], tmn[1]]) 
+                    parindex.append([i, tmn[0], tmn[1]]) 
                     break
-        if len(temp_parindex) != len(params):
-            print("""Chain '{}' don't have at least one of the parameters
-                    '{}'""".format(file_roots, params))
-            exit()
+        if len(parindex) != len(params):
+            ContourError("""File '{}' doesn't have at least one of the
+                    parameters '{}'""".format(fname, params))
+    return parindex
 
-        parindex.append(temp_parindex)
+def get_paramnames(file_roots, params=None, ext=".paramnames", verbose=False, skip=False):
+    """For each file 'file_roots+ext' finds the indeces of the elements in params
+    that matcht what is stored in the first columns of the parametere file names
 
-    return(parindex)
+    Parameters
+    ----------
+    file_roots: string, list-like (must have append method)
+        list of file root of the chain to be plotted
+    params: list (optional)
+        name of the parameters of interest as in the first column of the
+        parameter name files. If None all parameters saved
+    ext: string (optional)
+        extention of the parameters file
+    verbose: bool (optional)
+        more output
+    skip: bool (optional)
+        skip non existing files
+    output
+    ------
+    parindex: 
+        if file_roots is string: len(parindex) == len(params) or the whole file
+        if file_roots is list-like: parindex is a a list len(file_roots) 
+        In the last case len(parindex[i])==len(params) or the whole file.
+        In any case:
+        parindex[i][j] = [index_in_file, first_column_string, second_column_string]
+    """
+    #check the type of the input
+    is_string, is_listlike = _check_type(file_roots)
+
+    if is_string: 
+        parindex = _get_paramnames(file_roots+ext, params=params,
+                verbose=verbose, skip=skip)
+        if parindex is None:
+            ContourError("The file '{}' does not exists".format(file_roots+ext))
+        else:
+            return parindex
+    elif is_listlike:
+        parindex = [_get_paramnames(fr+ext, params=params, verbose=verbose,
+            skip=skip) for fr in file_roots]
+        return(parindex)
 
 
 def get_chains(file_roots, cols, ext=".txt", verbose=False):
