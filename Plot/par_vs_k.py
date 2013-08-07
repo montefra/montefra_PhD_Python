@@ -1,14 +1,14 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-#import itertools as it
-#import matplotlib.pyplot as plt  #plotting stuff
 #import matplotlib.ticker as tic  #axis formatter
-#import my_statistic as ms
-#import myplotmodule as mpm   # my model used to plot
 #import os    #contain OS dependent stuffs: it helps with sistem portability  
 
 import contour_func as cf
+import itertools as it
+import matplotlib.pyplot as plt
+import myplotmodule as mpm
+import my_statistic as ms
 import numpy as np
 import sys 
 
@@ -94,7 +94,7 @@ each parameter file name. If not given, all columns are read""")
             help="""Displace the errorbars by '%(dest)s' to avoid overlap.
 Ignored if 'fill-between' is used""")
 
-    pp.add_argument("-f", "--fill-between", action=apc.required_range(0, 1), 
+    pp.add_argument("-f", "--fill", action=apc.required_range(0, 1), 
             type=float, nargs=2, 
             help="""Substitute errorbars with matplotlib 'fill_between' 
 with transparencies in the range [0,1]. 
@@ -103,30 +103,34 @@ No transparency for eps.""")
     pp.add_argument("--horizontal", type=float, nargs='+',
             action=apc.multiple_of(2, reshape=True), 
             help="""Plot an horizontal line in subplot '%(dest)s[0]' at
-y='%(dest)s[1]'. Multiple lines can be drawn providing couple of
-subplot-line.""")
+y='%(dest)s[1]'. The sublot is identified with the short name 
+from the parameter file. Multiple lines can be drawn providing 
+couple of subplot-line.""")
 
     pp.add_argument("-b", "--bounds", action="store", type=float, nargs=4,
-            default=[0.20, 0.20, 0.97, 0.97], 
-            help="""Left, bottom, right and top limits of the plotting area
-within the figure window.""")
+            default=[0, 0, 1, 1], 
+            help="""(left, bottom, right, top) in the normalized figure
+coordinate passed to 'plt.tight_layout'""")
 
     pp.add_argument("-r", "--rescale", type=float, nargs='+',
             action=apc.multiple_of(2, reshape=True), 
             help="""Rescale the abscissa in subplot '%(dest)s[0]' by
-'%(dest)s[1]'. The same rescaling factor is shown in the y label.
-Multiple rescaling can be drawn providing couple of
-subplot-rescaling.""")
+'%(dest)s[1]'. The same rescaling factor is shown in 
+the y label. The sublot is identified with the short 
+name from the parameter file. Multiple rescaling can 
+be drawn providing couple of subplot-rescaling.""")
             
     pp.add_argument("--y-label", nargs='+', action=apc.multiple_of(2, reshape=True), 
             help="""Set y axis label in subplot '%(dest)s[0]' to '%(dest)s[1]'.
-Multiple labels can be drawn providing couple of 
-subplot-label.""")
+The sublot is identified with the short name 
+from the parameter file. Multiple labels can 
+be drawn providing couple of subplot-label.""")
 
     pp.add_argument("--y-range", nargs='+', action=apc.multiple_of(2, reshape=True), 
             help="""Set y axis range in subplot '%(dest)s[0]' to '%(dest)s[1]'.
-Multiple ranges can be set providing couple of 
-subplot-range.""")
+The sublot is identified with the short name 
+from the parameter file. Multiple ranges can 
+be set providing couple of subplot-range.""")
 
     #legend options
     pl = p.add_argument_group(description='Legend options')
@@ -135,9 +139,12 @@ subplot-range.""")
             help="""Legend tags. If given, the number of elements must be the
 same as the number of input root and in the same order.""")
 
-    pl.add_argument("--legend-plot", action="store", type=int, default=0,
-            help="""Put the legend in plot '%(dest)s'. If negative, figure
-legend drawn.""")
+    pl.add_argument("--legend-plot", action="store", default=0,
+            help="""Put the legend in plot '%(dest)s'. The sublot is 
+identified with the short name from the 
+parameter file. If '%(dest)s' is not in
+the list of parameters, the figure legend
+is drawn.""")
 
     pl.add_argument("--loc", type=apc.int_or_str, default=0,
             help='Legend location (see matplotlib legend help)')
@@ -220,8 +227,9 @@ def read_ini(ini, n_froot):
         ind_kmin = [(k<km).sum() for km, k in zip(kmin, k_from_files)]
 
     return n_params, n_mocks, k_from_files, ind_kmin
+#end def read_ini(ini, n_froot):
 
-def kmax_correction(krange, stride, n_froot, ini=None):
+def kmax_correction(krange, stride, n_froot, shift=None, ini=None):
     """
     Create the values of kmax and if ini is not none uses the information in
     the configuration file to estimate the correction factor needed to unbias
@@ -235,36 +243,47 @@ def kmax_correction(krange, stride, n_froot, ini=None):
         stride between min and max
     n_froot: int
         number of file root
+    shift: float
+        shift in kmax of each file root with respect to the previous one to
+        avoid superposition of errorbars
     ini: file object
         configuration file that is passed to configparser
     output
     ------
     kmax: nd array
         maximum value of k used
-    correction: nd array of shape k_max.shape
+    correction: nd array of shape kmax.shape
         correction to be applied according to the above paper. All 1 if ini==None
     """
     kmax = np.arange(int(args[0]),int(args[1])+1,options.stride)/100.  #create array with the k_max
+    kmax = np.tile(kmax[:,None], n_froot).T
     #array containing the corrections. All 1, unless filled if ini is not none
-    correction = np.ones([kmax.size, n_froot]) 
+    correction = np.ones_like(kmax) 
     #read the ini file and compute the corrective factor
     if ini is not None:
         n_params, n_mocks, k_from_files, ind_kmin = read_ini(ini, n_froot)
-        #Iterate trough corr and do the required operations
+        # Iterate trough correction and kmax and do the required operations
         # create the iterator with the indeces
-        it = np.nditer(correction, flags=['multi_index'], op_flags=['writeonly'])
-        while not it.finished: #loop untill the end of the iterator
-            ind0, ind1 = it.multi_index # the the two indeces
+        ndit = np.nditer([correction, kmax], flags=['multi_index'],
+                op_flags=['readwrite'])
+        while not ndit.finished: #loop untill the end of the iterator
+            ind0, ind1 = ndit.multi_index # the the two indeces
             #number of bins in given file with give k_max
-            nbins = np.sum(k_from_files[ind1]<k_max[ind0])-ind_kmin[ind1]
+            nbins = np.sum(k_from_files[ind0]<it[1])-ind_kmin[ind0]
             # compute m1 and save into corr
-            denominator = (n_mocks[ind1]-nbins-1.) * (n_mocks[ind1]-nbins-4.)
+            denominator = (n_mocks[ind0]-nbins-1.) * (n_mocks[ind0]-nbins-4.)
             A = 2./denominator
             B = (n_mocks[ind1]-nbins-2.)/denominator
             it[0] = (1.+B*(nbins-n_params)) / (1.+A+B*(n_params+1.))
-            it.iternext()
+            ndit.iternext()
 
-    return np.tile(kmax[:,None], n_froot), correction
+    # shift the kmax
+    if shift is not None:
+        shifta = np.arange(n_froot)*shift[:,None]
+        kmax += shifta
+
+    return kmax, correction
+#end def kmax_correction(krange, stride, n_froot, ini=None):
 
 class FrootException(Exception):
     """exception related with file roots"""
@@ -300,13 +319,14 @@ def make_full_root(froots, kmax):
             raise FrootException("The input file roots must have zero or one '{}'")
     #make an empty string 2d numpy array 
     full_roots = np.empty_like(kmax, dtype=unicode)
-    it = np.nditer([full_roots, kmax], flags=['multi_index'], op_flags=['readwrite'])
-    while not it.finished: #loop untill the end of the iterator
-        ind0, ind1 = it.multi_index # the the two indeces
-        it[0] = temp_roots[j].format(it[1]) #substitute {} with kmax
-        it.iternext()
+    ndit = np.nditer([full_roots, kmax], flags=['multi_index'], op_flags=['readwrite'])
+    while not ndit.finished: #loop untill the end of the nditerator
+        ind0, ind1 = ndit.multi_index # the the two indeces
+        ndit[0] = temp_roots[ind0].format(ndit[1]) #substnditute {} wndith kmax
+        ndit.iternext()
 
     return full_roots
+#end def make_full_root(froots, kmax):
 
 def print_paramlist(fname):
     """
@@ -333,18 +353,19 @@ def skip(fchain, fparamnames, correction):
     correction: nd array
         correction to apply to each covariance
     """
-    it = np.nditer([fchain, fparamnames, correction], flags=['multi_index'],
+    ndit = np.nditer([fchain, fparamnames, correction], flags=['multi_index'],
             op_flags=['readwrite'])
-    while not it.finished: #loop untill the end of the iterator
+    while not ndit.finished: #loop untill the end of the nditerator
         try:  #if the files exists no problem opening them
-            with open(it[0], 'r'), open(it[1], 'r'):
+            with open(ndit[0], 'r'), open(ndit[1], 'r'):
                 pass
         except IOError: #if any of them does note exist set -999
-            it[0] = '-999'
-            it[1] = '-999'
-            it[2] = -999
-        it.iternext()
+            ndit[0] = '-999'
+            ndit[1] = '-999'
+            ndit[2] = -999
+        ndit.iternext()
     return fchain, fparamnames, correction
+#end def skip(fchain, fparamnames, correction):
 
 def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
     """Read the paramname and chain files and compute mean and std for all the
@@ -364,26 +385,232 @@ def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
         skip non existing files
     output
     ------
+    key_list: list
+        list of keys of the following dictionaries: short names from the
+        parameter files
+    labels: dict
+        dictionary with key: short name; value: latex string
+    mean, stddev: dict
+        dictionaries with key: short name; value: ndarray of paramnames.shape
+        containing the mean and standard deviations
     """
-    # these dictionaries will have as key the latex name of the variable 
-    # and each value is a nd array of float of paramnames.shape 
-    mean, std = {}, {}
-    value_prototipe = np.empty_like(paramnames, dtype=float)
+    key_list=[] #to keep it ordered the dict keys ordered
+    # these dictionaries will have as key the parameter short names
+    labels = {} #list of y labels. key: short name; value latex code within $$
+    # each value is a nd array of float of paramnames.shape 
+    mean, stddev = {}, {}
+    value_prototipe = np.empty_like(paramname, dtype=float).fill(np.nan)
 
-    it = np.nditer([paramname, chains], flags=['multi_index'],
+    # iterate over the parameter and the chain file names
+    ndit = np.nditer([paramname, chains], flags=['multi_index'],
             op_flags=['readonly'])
     while not it.finished: #loop untill the end of the iterator
-        ind0, ind1 = it.multi_index # the the two indeces
-        try:
-            paramindex = cf.get_paramnames(it[0], params=params, ext="",
+        ind0, ind1 = ndit.multi_index # the two indeces
+        try:  #try to read files and save the mean and stddev
+            paramindex = cf.get_paramnames(ndit[0], params=params, ext="",
                 verbose=verbose, skip=args.skip)
+            indeces, short_name, long_name = [], [], []
             for pi in paramindex:
+                indeces.append(pi[0]+2)
+                short_name.append(pi[1])
+                long_name.append(pi[2])
+            #insert the index of the first columns with the weights
+            indeces.insert(0, 0)
+            #read the chains
+            chains = np.loadtxt(ndit[1], usecols=indeces)
 
-        except cf.ContourError:
+            #compute mean and average of the chains
+            chain_mean = np.average(chain[:,1:], axis=0, weights=chain[:,0])
+            chain_stddev = ms.stddev(chain[:,1:], weights=chain[:,0], axis=0)
 
+            #loop over the long_names. Save the long_names in key_list and the
+            #mean and std into the corresponding dictionary
+            for tmean, tstd, sn, ln in zip(chain_mean, chain_stddev, short_name, long_names):
+                # if the key is not already in the dictionary add the label and
+                # initialise the value in mean and stddev to value_prototipe
+                if ln not in labels: 
+                    labels[sn] = '$'+ln+'$'
+                    mean[sn] = np.copy(value_prototipe)
+                    stddev[sn] = np.copy(value_prototipe)
+                #save the mean and stddev
+                mean[sn][ind0, ind1] = tmean
+                stddev[sn][ind0, ind1] = tmean
+        #if it fails in reading the parameter file names, do just go to the next loop
+        except cf.ContourError: 
+            pass
+        ndit.iternext()
 
-        it.iternext()
+    return key_list, labels, mean, stddev
+#end def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
     
+def multiply_dic(d, corr):
+    """
+    Multiply all the elements in the dictionary by the factor 'corr'
+    Parameters
+    ----------
+    d: dict
+        dictionary with value: ndarray 
+    corr: number or ndarray of shape d[key].shape
+        multiplicative correction
+    output
+    ------
+    d: dict
+        input dictionary corrected
+    """
+    for k, v in d.items():
+        d[k] = v*corr
+    return d
+
+def rescale_y(rescale, mean, std, labels):
+    """
+    Rescale the mean and standard deviation multiplying the desired parameters
+    by the desired factor. Modify accordingly the labels 
+    Parameters
+    ----------
+    rescale: list of lists
+        list containing two element lists of short paramname names and rescaling
+    mean, std: dict
+        dictionaries with key: short name; value: ndarray of paramnames.shape
+        containing the mean and standard deviations
+    labels: dict
+        dictionary with key: short name; value: latex string
+    output
+    ------
+    modified mean, std and labels
+    """
+    for (k, r) in rescale:
+        if k not in mean:
+            raise cf.ContourError("Key '{}' is not in mean and std dictionaries")
+        mean[k] = mean[k]*r
+        std[k] = std[k]*r
+        if(r.is_integer()==True):
+            strr = str(int(r))
+        else:
+            strr = str(r)
+        labels[k] = "$"+strr+"$"+labels[k] 
+    return mean, std, labels
+
+def subsitute_ylabels(new_labels, labels):
+    """
+    Substitute the ylabels in labels with the one from new_labels
+    Parameters
+    ----------
+    new_labels: list of len(2) lists 
+        new_labels[i] = [key, new_label]
+    labels: dict
+        dictionary with key: short name; value: latex string
+    output
+    ------
+    labels: same as input with new labels
+    """
+    for k, v in args.y_label:
+        if k not in labels:
+            raise cf.ContourError("Key '{}' is not in mean and std dictionaries")
+        labels[k] = v
+    return labels
+
+def set_mpl_defaults(fsize, leg_fsize, lw, ms):
+    """
+    Set the defaults rc parameters for matplotlib
+    Parameters
+    ----------
+    fsize: size string or font size in point
+        font size
+    leg_fsize: size string or font size in point
+        legend font size
+    lw: number
+        lines width
+    ms: number
+        marker size
+    """
+    import matplotlib as mpl
+
+    mpl.rcParams['font.size'] = fsize
+    mpl.rcParams['axes.labelsize'] = fsize
+    if leg_fsize is None:
+        mpl.rcParams['legend.fontsize'] = fsize
+    else:
+        mpl.rcParams['legend.fontsize'] = leg_fsize
+    mpl.rcParams['lines.linewidth'] = lw
+    mpl.rcParams['lines.markersize' ] = ms
+
+def make_figure(key_list, labels):
+    """
+    Create the figure with len(key_list) subplots. Save the subplots into a
+    dictionary and make the x and y axis labels
+    Parameters
+    ----------
+    key_list: list
+        list of keys of the following dictionary: short names from the
+        parameter files
+    labels: dict
+        dictionary with key: short name; value: y label
+    output
+    ------
+    fig: matplotlib figure
+    axs_dic: dic
+        dictionary of subplot objects with keys from key_list
+    """
+    # window size
+    xs= 10./mpm.inc2cm
+    ys= 2.6*(n_plots+1)/mpm.inc2cm
+
+    fig, axs = plt.subplots(nrows=len(key_list), ncols=1, sharex=True,
+            figsize(xs, ys))
+    # move the axs to a dictionary with the elements of key_list as key. Also
+    # set the ylabels and remove the x labels except in the last plot
+    axs_dic={}
+    for k, ax, lab in zip(key_list, axs, labels):
+        ax.label_outer()
+        ax.set_ylabel(lab)
+        axs_dic[k] = ax
+
+    #set the x label for the last plot
+    axs_dic[key_list[-1]].set_xlabel("$k_{\mathrm{max}}\,[h/Mpc]$")
+
+    return fig, axs_dic
+
+def plot(axs_dic, kmax, mean, stddev, fill=None):
+    """
+    Populate the axes with plots 
+    Parameters
+    ----------
+    axs_dic: dict
+        key: short param names; value: plt.subplot
+    kmax: nd_array
+        values of kmax to plot
+    mean: dict
+        key: short param names; value: nd_array of kmax.shape with the means
+    stddev: dict
+        key: short param names; value: nd_array of kmax.shape with the standard deviations
+    fill_between: 2 element list
+    """
+    # set up the alpha and assosiate the correct function to plot the errorbars 
+    if fill is not None:
+        alphas = np.linspace(*fill, num=kmax.shape[0])  #create the range of alpha
+        def cerrorfil(*args, **kwargs): # wrapper that pass alpha to alpha_fill in errorfill
+            from errorfill import errorfill
+            #move the alpha to alpha_fill and set alpha to 1
+            kwargs["alpha_fill"] = kwargs.get('alpha', 1)
+            kwargs["alpha"] = 1
+            errorfill(*args, **kwargs)
+        errorbar = cerrorfil
+    else:
+        alphas = np.ones(kmax.shape[0])
+        errorbar = plt.errorbar
+
+    for k, ax in axs_dic.items():  #loop over the axes
+        #reset colors, line style and markers for every axes
+        colors = it.cycle(mpm.colors)
+        linestyles = it.cycle(mpm.linestyles)
+        markers = it.cycle(mpm.symbols[2:-2])
+
+        for k, m, s, c, ls, ma, alpha in zip(kmax, mean, stddev, colors,
+                linestyles, markers, alphas):
+            toplot = np.isfinite(m)  # if any of the elements does not exists, skip it
+            errorbar(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls, marker=ma, alpha=alpha)
+#end def plot(axs_dic, kmax, mean, stddev, fill=None):
+
 
 if __name__ == "__main__":   # if is the main
 
@@ -397,21 +624,19 @@ if __name__ == "__main__":   # if is the main
 
     if args.verbose:
         print("Computing kmax and correction")
+    if args.fill is not None:  #ignore shift 
+        args.shift = None
     k_max, corr = kmax_correction(args.range, args.stride, len(args.froot),
-            ini=args.ini)
+            shift=args.shift ini=args.ini)
 
     if args.verbose:
         print("Create the the file names")
     args.froot = make_full_root(args.froot, k_max)
 
-    #check that they have the same shape
-    assert args.froot.shape == corr.shape, 
-            "The array of file roots and corrections must have the same shape"
-
     #create the parameter and chain file names
     #substitute with np.add when will become available
     paramnames = np.core.defchararray.add(args.froot, '.'+args.ext_parmn)
-    chains = np.core.defchararray.add(args.froot, '.'+args.ext_parmn)
+    chains = np.core.defchararray.add(args.froot, '.'+args.ext_chain)
 
     if args.paramlist:
         print_paramlist(paramnames[0])
@@ -421,44 +646,53 @@ if __name__ == "__main__":   # if is the main
             print("Skipping non existing files")
         chains, paramnames, corr = skip(chains, paramnames, corr)
 
-    #read the parameter name files
+    if args.verbose:
+        print("Read the parameter name and chain files and compute the mean and stddev")
+    short_names, labels_dic, mean_dic, std_dic = files_to_mean_std(paramnames,
+            chains, params=args.columns, verbose=args.verbose, skip=args.skip)
 
-    #check that all the elements in "paramnames" are the same
-    if args.columns is None:
+    if (corr!=1).any(): # if any of the correction is different from 1 apply it
+        if args.verbose:
+            print("Correcting the errors")
+        multiply_dic(std_dic, corr)
 
+    if args.nsigma!=1:
+        if args.verbose:
+            print("{}sigma wanted in the plot".format(args.nsigma))
+        multiply_dic(std_dic, args.nsigma)
 
+    if args.rescale is not None:
+        if args.verbose:
+            print("rescaling the mean and stddev in the desired subplots")
+        mean_dic, std_dic, labels_dic = rescale_y(args.rescale, mean_dic,
+                std_dic, labels_dic)
+
+    if args.y_label is not None:
+        if args.verbose:
+            print("Substituting the y labels in the desired subplots")
+        labels_dic = subsitute_ylabels(args.y_label, labels_dic)
+
+    if args.verbose:
+        print("Set up the plot area")
+    set_mpl_defaults(args.font_size, args.legend_fsize, args.line_width,
+            args.marker_size)
+    fig, daxs = make_figure(short_names, labels_dic)
+
+    if args.verbose:
+        print("Plot mean and stddev")
+    plot(daxs, kmax, mean_dic, std_dic, fill=args.fill)
+
+    plt.tight_layout(h_pad=0, rect=args.bounds)
+    plt.show()
 
     exit()
     
 
-#  if(options.cols == None):   #if no columns given all the columns read
-#    options.cols = list(np.arange(len(paramnames))+2)
-#  else:
-#    discard = []
-#    for i in options.cols:   #check that the columns are correct
-#      if(i<2 or i>len(paramnames)+1):
-#        print "The column %d is not acceptable or do not exists. I'll skip it" %i
-#	discard.append(i)
-#    for i in discard:   #discard the non existing columns
-#      options.cols.remove(i)
-#    if(len(options.cols) == 0):
-#      print "All the column number are too big or to small"
-#      sys.exit(2)
-#  options.cols.insert(0,0)  #read also the first column
-#  n_plots = len(options.cols)-1   #number of plots
 #
 #  horiz = [[None, 0.] for i in range(n_plots)] #initialise the list of lists for the horizontal lines
 #  if(options.horiz != None):   #if a tuple of values to draw the horizontal line is given order it
 #    for h in options.horiz:
 #      horiz[int(h[0])] = list(h)
-#  rescale = [1 for i in range(n_plots)] #initialise the list of lists for the rescaling of the plot y axes
-#  if(options.rescale != None):   #if a tuple of values to draw the horizontal line is given order it
-#    for h in options.rescale:
-#      rescale[int(h[0])] = h[1]
-#  ylab = [[None, None] for i in range(n_plots)] #initialise the list of lists for the custom y labels
-#  if(options.ylab != None):   #if a tuple of values to draw the horizontal line is given order it
-#    for y in options.ylab:
-#      ylab[int(y[0])] = list(y)
 #  yrange = [[None, None, None] for i in range(n_plots) ] #initialise the list of lists for the custom y limits
 #  if(options.yrange != None):
 #    for y in options.yrange:
