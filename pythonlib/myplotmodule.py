@@ -117,7 +117,7 @@ def legend(ax, lines, tags, pos, **kargs):
   if(kargs.has_key("lsfont")==True and kargs["lsfont"]!=None):
     plt.setp(txt, fontsize=kargs["lsfont"])
   else:
-    print "Keep default font size of the legend"
+    print("Keep default font size of the legend")
   if(kargs.has_key("textcol")==True and kargs["textcol"] == True):
     for i,l in enumerate(lines):
       txt[i].set_color(list(l)[0].get_color())

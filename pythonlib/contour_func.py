@@ -63,7 +63,7 @@ def _get_paramnames(fname, params=None, verbose=False, skip=False):
     try:
         with open(fname, 'r') as f: # open each file
             if(verbose == True):
-                print "Reading file {}".format(f.name)
+                print("Reading file {}".format(f.name))
             temp = f.readlines()   # and read it all
     except IOError as e:
         if skip:
@@ -157,7 +157,7 @@ def get_chains(file_roots, cols, ext=".txt", verbose=False):
         c.insert(0,0) #insert the index of the first column (with the weights)
         with open(fr+ext, 'r') as f:
             if verbose:
-                print "Reading file '{}'".format(f.name)
+                print("Reading file '{}'".format(f.name))
             chains.append(np.loadtxt(f, usecols=c))   #load the chain file
     return chains
 
@@ -198,7 +198,7 @@ def hist2D(a, xr=None, yr=None, bins=30, smooth=False):
         elif(c.shape[1] == 3):  #if a has 3 columns do nothing
             pass
         else:
-            print "Too many or too few columns"
+            print("Too many or too few columns")
             sys.exit(20)
 
         txr, tyr = xr, yr

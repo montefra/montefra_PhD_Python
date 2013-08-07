@@ -255,7 +255,7 @@ def kmax_correction(krange, stride, n_froot, shift=None, ini=None):
     correction: nd array of shape kmax.shape
         correction to be applied according to the above paper. All 1 if ini==None
     """
-    kmax = np.arange(int(args[0]),int(args[1])+1,options.stride)/100.  #create array with the k_max
+    kmax = np.arange(int(krange[0]),int(krange[1])+1,stride)/100.  #create array with the k_max
     kmax = np.tile(kmax[:,None], n_froot).T
     #array containing the corrections. All 1, unless filled if ini is not none
     correction = np.ones_like(kmax) 
@@ -279,8 +279,8 @@ def kmax_correction(krange, stride, n_froot, shift=None, ini=None):
 
     # shift the kmax
     if shift is not None:
-        shifta = np.arange(n_froot)*shift[:,None]
-        kmax += shifta
+        shifta = np.arange(n_froot)*shift
+        kmax += shifta[:,None]
 
     return kmax, correction
 #end def kmax_correction(krange, stride, n_froot, ini=None):
@@ -318,11 +318,11 @@ def make_full_root(froots, kmax):
         else:
             raise FrootException("The input file roots must have zero or one '{}'")
     #make an empty string 2d numpy array 
-    full_roots = np.empty_like(kmax, dtype=unicode)
+    full_roots = np.tile(np.array(temp_roots)[:,None], kmax.shape[1])
     ndit = np.nditer([full_roots, kmax], flags=['multi_index'], op_flags=['readwrite'])
     while not ndit.finished: #loop untill the end of the nditerator
         ind0, ind1 = ndit.multi_index # the the two indeces
-        ndit[0] = temp_roots[ind0].format(ndit[1]) #substnditute {} wndith kmax
+        ndit[0] = str(ndit[0]).format(float(ndit[1])) #substnditute {} with kmax
         ndit.iternext()
 
     return full_roots
@@ -399,15 +399,16 @@ def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
     labels = {} #list of y labels. key: short name; value latex code within $$
     # each value is a nd array of float of paramnames.shape 
     mean, stddev = {}, {}
-    value_prototipe = np.empty_like(paramname, dtype=float).fill(np.nan)
+    value_prototipe = np.empty_like(paramname, dtype=float)
+    value_prototipe.fill(np.nan)
 
     # iterate over the parameter and the chain file names
     ndit = np.nditer([paramname, chains], flags=['multi_index'],
             op_flags=['readonly'])
-    while not it.finished: #loop untill the end of the iterator
+    while not ndit.finished: #loop untill the end of the iterator
         ind0, ind1 = ndit.multi_index # the two indeces
         try:  #try to read files and save the mean and stddev
-            paramindex = cf.get_paramnames(ndit[0], params=params, ext="",
+            paramindex = cf.get_paramnames(str(ndit[0]), params=params, ext="",
                 verbose=verbose, skip=args.skip)
             indeces, short_name, long_name = [], [], []
             for pi in paramindex:
@@ -417,7 +418,7 @@ def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
             #insert the index of the first columns with the weights
             indeces.insert(0, 0)
             #read the chains
-            chains = np.loadtxt(ndit[1], usecols=indeces)
+            chain = np.loadtxt(str(ndit[1]), usecols=indeces)
 
             #compute mean and average of the chains
             chain_mean = np.average(chain[:,1:], axis=0, weights=chain[:,0])
@@ -425,16 +426,17 @@ def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
 
             #loop over the long_names. Save the long_names in key_list and the
             #mean and std into the corresponding dictionary
-            for tmean, tstd, sn, ln in zip(chain_mean, chain_stddev, short_name, long_names):
+            for tmean, tstd, sn, ln in zip(chain_mean, chain_stddev, short_name, long_name):
                 # if the key is not already in the dictionary add the label and
                 # initialise the value in mean and stddev to value_prototipe
-                if ln not in labels: 
+                if sn not in key_list: 
+                    key_list.append(sn)
                     labels[sn] = '$'+ln+'$'
                     mean[sn] = np.copy(value_prototipe)
                     stddev[sn] = np.copy(value_prototipe)
                 #save the mean and stddev
                 mean[sn][ind0, ind1] = tmean
-                stddev[sn][ind0, ind1] = tmean
+                stddev[sn][ind0, ind1] = tstd
         #if it fails in reading the parameter file names, do just go to the next loop
         except cf.ContourError: 
             pass
@@ -551,18 +553,19 @@ def make_figure(key_list, labels):
     axs_dic: dic
         dictionary of subplot objects with keys from key_list
     """
+    n_subplots = len(key_list)
     # window size
     xs= 10./mpm.inc2cm
-    ys= 2.6*(n_plots+1)/mpm.inc2cm
+    ys= 2.6*(n_subplots+1)/mpm.inc2cm
 
-    fig, axs = plt.subplots(nrows=len(key_list), ncols=1, sharex=True,
-            figsize(xs, ys))
+    fig, axs = plt.subplots(nrows=n_subplots, ncols=1, sharex=True,
+            figsize=(xs, ys))
     # move the axs to a dictionary with the elements of key_list as key. Also
     # set the ylabels and remove the x labels except in the last plot
     axs_dic={}
-    for k, ax, lab in zip(key_list, axs, labels):
+    for k, ax in zip(key_list, axs):
         ax.label_outer()
-        ax.set_ylabel(lab)
+        ax.set_ylabel(labels[k])
         axs_dic[k] = ax
 
     #set the x label for the last plot
@@ -588,16 +591,8 @@ def plot(axs_dic, kmax, mean, stddev, fill=None):
     # set up the alpha and assosiate the correct function to plot the errorbars 
     if fill is not None:
         alphas = np.linspace(*fill, num=kmax.shape[0])  #create the range of alpha
-        def cerrorfil(*args, **kwargs): # wrapper that pass alpha to alpha_fill in errorfill
-            from errorfill import errorfill
-            #move the alpha to alpha_fill and set alpha to 1
-            kwargs["alpha_fill"] = kwargs.get('alpha', 1)
-            kwargs["alpha"] = 1
-            errorfill(*args, **kwargs)
-        errorbar = cerrorfil
     else:
         alphas = np.ones(kmax.shape[0])
-        errorbar = plt.errorbar
 
     for k, ax in axs_dic.items():  #loop over the axes
         #reset colors, line style and markers for every axes
@@ -605,10 +600,15 @@ def plot(axs_dic, kmax, mean, stddev, fill=None):
         linestyles = it.cycle(mpm.linestyles)
         markers = it.cycle(mpm.symbols[2:-2])
 
-        for k, m, s, c, ls, ma, alpha in zip(kmax, mean, stddev, colors,
+        for k, m, s, c, ls, ma, alpha in zip(kmax, mean[k], stddev[k], colors,
                 linestyles, markers, alphas):
             toplot = np.isfinite(m)  # if any of the elements does not exists, skip it
-            errorbar(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls, marker=ma, alpha=alpha)
+            if fill is None:
+                ax.errorbar(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls, marker=ma, alpha=alpha)
+            else:
+                from errorfill import errorfill
+                errorfill(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls, alpha_fill=alpha, ax=ax)
+
 #end def plot(axs_dic, kmax, mean, stddev, fill=None):
 
 
@@ -627,7 +627,7 @@ if __name__ == "__main__":   # if is the main
     if args.fill is not None:  #ignore shift 
         args.shift = None
     k_max, corr = kmax_correction(args.range, args.stride, len(args.froot),
-            shift=args.shift ini=args.ini)
+            shift=args.shift, ini=args.ini)
 
     if args.verbose:
         print("Create the the file names")
@@ -639,7 +639,7 @@ if __name__ == "__main__":   # if is the main
     chains = np.core.defchararray.add(args.froot, '.'+args.ext_chain)
 
     if args.paramlist:
-        print_paramlist(paramnames[0])
+        print_paramlist(paramnames[0,0])
 
     if args.skip:
         if args.verbose:
@@ -680,7 +680,7 @@ if __name__ == "__main__":   # if is the main
 
     if args.verbose:
         print("Plot mean and stddev")
-    plot(daxs, kmax, mean_dic, std_dic, fill=args.fill)
+    plot(daxs, k_max, mean_dic, std_dic, fill=args.fill)
 
     plt.tight_layout(h_pad=0, rect=args.bounds)
     plt.show()
