@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 #import matplotlib.ticker as tic  #axis formatter
@@ -11,7 +11,30 @@ import myplotmodule as mpm
 import my_statistic as ms
 import numpy as np
 import sys 
+from warnings import warn
 
+def get_ini():
+    """
+    Sample ini file
+    """
+    inifile = """
+    [default]
+    #test config parser for Python/Plots/par_vs_k.py
+    #number of parameters
+    n_params = 4
+    #number of mocks used: can be either 1 element (the same for all froot) or as many as the number of froot
+    #n_mocks = 600
+    n_mocks = 600 300 
+    #measurement file name used to compute the number of bins used (assumed to be the first column) 
+    # Can be either one or as many as the number of froot
+    pk_dir = /data01/montefra/PThalos/V5.2/PS_win
+    pk_files = %(pk_dir)s/ps_pthalos-v5.2-irmean.south.4000.1200.500.pw20000.masTSC.corr2.wmissboss.sectcomp.even.dat_rancorr.dat 
+               %(pk_dir)s/ps_pthalos-v5.2-irmean.south.4000.1200.100.pw20000.masTSC.corr2.wmissboss.sectcomp.even.dat_rancorr.dat 
+    #minimum value of k used. Can be either one or as many as the number of froot
+    kmin = 0.02
+    #kmin = 0.02 0.05
+    """
+    return inifile
 
 def parse(argv):
     """
@@ -139,12 +162,13 @@ be set providing couple of subplot-range.""")
             help="""Legend tags. If given, the number of elements must be the
 same as the number of input root and in the same order.""")
 
-    pl.add_argument("--legend-plot", action="store", default=0,
+    pl.add_argument("--legend-plot", action="store", 
             help="""Put the legend in plot '%(dest)s'. The sublot is 
 identified with the short name from the 
 parameter file. If '%(dest)s' is not in
 the list of parameters, the figure legend
-is drawn.""")
+is drawn. If not given, the legend is drawn
+in the first plot""")
 
     pl.add_argument("--loc", type=apc.int_or_str, default=0,
             help='Legend location (see matplotlib legend help)')
@@ -157,15 +181,28 @@ is drawn.""")
     description = """Correct the estimated variance by sqrt(m1) or sqrt(m2), as
     in Percival et al. 2013"""
     pc = p.add_argument_group(description=description)
-    with open('par_vs_k.ini', 'r') as f:
-        lines = f.readlines()
-    lines = [l.replace('%', '%%') for l in lines]
-    lines.insert(0, "Inifile with the following structure\n\n")
+    lines = get_ini().replace('%', '%%')
+    lines = ["Inifile with the following structure:", lines]
     lines = "".join(lines)
     pc.add_argument('--ini', type=ap.FileType('r'), help=lines)
 
+
+    class Save_Ini(ap.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            lines = get_ini()
+            lines = lines.split('\n')
+            lines = [l.strip() for l in lines[1:]]
+            lines = '\n'.join(lines)
+            with open("sample.ini", 'w') as f:
+                f.write(lines)
+            print("'sample.ini' written in the current directory")
+            sys.exit(0)
+    pc.add_argument('--print-ini', nargs=0, action=Save_Ini, 
+            help="Save the inifile to file 'sample.ini' in the current directory")
+
     return p.parse_args(args=argv)
 #end def parse(argv)
+
 
 class IniNumber(Exception):
     def __init__(self, key, n):
@@ -174,6 +211,9 @@ class IniNumber(Exception):
         self.string = string.format(key, n)
     def __str__(self):
         return repr(self.string)
+
+class MyWarning(UserWarning):
+    pass
 
 def read_ini(ini, n_froot):
     """read inifile
@@ -482,14 +522,15 @@ def rescale_y(rescale, mean, std, labels):
     """
     for (k, r) in rescale:
         if k not in mean:
-            raise cf.ContourError("Key '{}' is not in mean and std dictionaries")
-        mean[k] = mean[k]*r
-        std[k] = std[k]*r
-        if(r.is_integer()==True):
-            strr = str(int(r))
+            warn("Key '{}' is not in mean and std dictionaries".format(k), MyWarning)
         else:
-            strr = str(r)
-        labels[k] = "$"+strr+"$"+labels[k] 
+            mean[k] = mean[k]*r
+            std[k] = std[k]*r
+            if(r.is_integer()==True):
+                strr = str(int(r))
+            else:
+                strr = str(r)
+            labels[k] = "$"+strr+"$"+labels[k] 
     return mean, std, labels
 
 def subsitute_ylabels(new_labels, labels):
@@ -505,10 +546,11 @@ def subsitute_ylabels(new_labels, labels):
     ------
     labels: same as input with new labels
     """
-    for k, v in args.y_label:
+    for k, v in new_label:
         if k not in labels:
-            raise cf.ContourError("Key '{}' is not in mean and std dictionaries")
-        labels[k] = v
+            warn("Key '{}' is not in labels dictionary".format(k), MyWarning)
+        else:
+            labels[k] = v
     return labels
 
 def set_mpl_defaults(fsize, leg_fsize, lw, ms):
@@ -570,6 +612,8 @@ def make_figure(key_list, labels):
 
     #set the x label for the last plot
     axs_dic[key_list[-1]].set_xlabel("$k_{\mathrm{max}}\,[h/Mpc]$")
+    #set the x limit a bit larger than the plotted ones
+    ax.set_xlim(kmax.min()*0.95, kmax.max()*1.04)
 
     return fig, axs_dic
 
@@ -608,13 +652,73 @@ def plot(axs_dic, kmax, mean, stddev, fill=None):
             else:
                 from errorfill import errorfill
                 errorfill(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls, alpha_fill=alpha, ax=ax)
-
 #end def plot(axs_dic, kmax, mean, stddev, fill=None):
 
+def plot_horiz(axs_dic, horiz):
+    """
+    Plot horizontal lines in desired axes
+    Parameters
+    ----------
+    axs_dic: dict
+        key: short param names; value: plt.subplot
+    horiz: list of len(2) lists 
+        horiz[i] = [key, y]
+    output
+    ------
+    horiz: same as input with new horizontal lines
+    """
+    for k, v in horiz:
+        if k not in axs_dic:
+            warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
+        else:
+            axs_dic[k].axhline(y=v, color='k', ls=':')
 
-if __name__ == "__main__":   # if is the main
+def change_ylim(axs_dic, y_lim):
+    """
+    Change the y limits of desired axes
+    Parameters
+    ----------
+    axs_dic: dict
+        key: short param names; value: plt.subplot
+    y_lim: list of len(2) lists 
+        y_lim[i] = [key, y limits]
+    output
+    ------
+    horiz: same as input with new horizontal lines
+    """
+    for k, v in horiz:
+        if k not in axs_dic:
+            warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
+        else:
+            axs_dic[k].set_ylim(v)
 
-    import sys
+def draw_legend(fig, axs_dic, labels, whichax, loc):
+    """
+    Draw the legend in figure 'fig' or one of the axes in 'axs_dic'
+    Parameters
+    ----------
+    fig: matplotlib figure
+    axs_dic: dic
+        dictionary of subplot objects with keys from key_list
+    labels: list of string
+        legend labels
+    whichax: string
+        axis where to draw the legend. If not in the axes dictionary, draw
+        figure legend
+    loc: matplotlib legend locations
+    """
+    # get legend handles and set where to draw the legend
+    try:
+        ax = axs_dic[whichax]
+        handles,_ = ax.get_legend_handles_labels()
+    except KeyError:
+        ax = fig
+        handles, _ = list(axs_dic.values())[0]
+
+    ax.legend(handles, labels, loc=loc)
+
+
+def main():
     args = parse(sys.argv[1:])
 
     # command line parameter checks
@@ -682,108 +786,30 @@ if __name__ == "__main__":   # if is the main
         print("Plot mean and stddev")
     plot(daxs, k_max, mean_dic, std_dic, fill=args.fill)
 
-    plt.tight_layout(h_pad=0, rect=args.bounds)
-    plt.show()
+    if args.horizontal is not None:
+        plot_horiz(daxs, args.horizontal)
 
+    if args.y_range is not None:
+        change_ylim(daxs, args.y_range)
+
+    # legend
+    if args.legend is not None:
+        if args.legend_plot is None:
+            args.legend_plot = short_names[0]
+        draw_legend(fig, daxs, args.legend, args.legend_plot, args.loc)
+
+    plt.tight_layout(h_pad=0, rect=args.bounds)
+    if args.ofile is None:
+        plt.show()
+    else:
+        fig.savefig(args.ofile)
+
+if __name__ == "__main__":   # if is the main
+
+    main()
     exit()
     
 
-#
-#  horiz = [[None, 0.] for i in range(n_plots)] #initialise the list of lists for the horizontal lines
-#  if(options.horiz != None):   #if a tuple of values to draw the horizontal line is given order it
-#    for h in options.horiz:
-#      horiz[int(h[0])] = list(h)
-#  yrange = [[None, None, None] for i in range(n_plots) ] #initialise the list of lists for the custom y limits
-#  if(options.yrange != None):
-#    for y in options.yrange:
-#      yrange[int(y[0])] = list(y)
-#
-#
-#  #create the numpy arrays that will contain the mean and the stddev of the columns
-#  mean = np.empty([len(files), n_plots])
-#  stddev = np.empty([len(files), n_plots])
-#
-#  #initialise the figure
-#  xs=10./mpm.inc2cm   # window size
-#  ys= 2.5*(n_plots+1)/mpm.inc2cm
-#  fig=plt.figure(1, figsize=(xs,ys))  #open the figure
-#  rheight = (options.bounds[3]-options.bounds[1])/n_plots     #height of each subplot
-#
-#  if(options.fill != None):
-#    alphas = np.linspace(options.fill[0], options.fill[1], len(args[2:]))    #alpha valued to be used in the fill_between
-#  else:
-#    alphas = [1 for i in args[2:]]
-#  tk_max = np.copy(k_max)  #make a copy of the k_max to make the plots
-#  lines=[] #initialise the line list
-#  for i,fr,col,ls,m,a in it.izip(it.count(), args[2:], it.cycle(mpm.colors),
-#      it.cycle(mpm.linestyles), it.cycle(mpm.symbols[2:-2]), alphas):   #loop through the file roots
-#
-#    files = [fr,]*k_max.size  # chain file names
-#    for j,km in enumerate(k_max):   #create the file names
-#      files[j] += "%3.2f.%s" %(km,options.ec)
-#    if(options.skip == True):  #check if to skip files
-#      files, discard = skip(files, slist=True)
-#      tk_max = np.delete(k_max, discard)   #discard values of kmax if some of the file is not there
-#
-#    #read each chain and obtain mean and std
-#    for j, fn in enumerate(files):
-#      if(options.verbose == True):
-#	print "Reading file %s" % fn
-#      chain = np.loadtxt(fn, usecols=options.cols)  #read
-#      if(options.verbose == True):
-#	print "Computing the mean of the parameters in file %s" % fn
-#      mean[j,:] = np.average(chain[:,1:], axis=0, weights=chain[:,0])  #mean of the columns containing parameters
-#      if(options.verbose == True):
-#	print "Computing the standard deviation of the parameters in file %s\n" % fn
-#      stddev[j,:] = ms.stddev(chain[:,1:], weights=chain[:,0], axis=0)  #stddev of all the columns containing parameters
-#
-#    for j,h,r,yl,yr,c in it.izip(it.count(), horiz, rescale, ylab, yrange, options.cols[1:]):   #loop through the various columns to plot
-#      box = [options.bounds[0], options.bounds[1]+(n_plots-j-1)*rheight,
-#	  options.bounds[2]-options.bounds[0], rheight]   #create the plot box
-#      subpl = fig.add_axes(box)  #create a subplots
-#
-#      if(np.absolute(r-1) > 1e-3):   #if a rescale required
-#        mean[:,j] *= r
-#        stddev[:,j] *= r
-#      if(options.fill == None):
-#	if(j==0):
-#	  lines.append(subpl.errorbar(k_max+i*options.shift, mean[:,j],
-#	    yerr=stddev[:,j], c=col, ls=ls, lw=options.lwidth, marker=m,
-#	    ms=options.smarker)[0])
-#	else:
-#	  subpl.errorbar(k_max+i*options.shift, mean[:,j], yerr=stddev[:,j],
-#	      c=col, ls=ls, lw=options.lwidth, marker=m, ms=options.smarker)
-#      else:
-#	if(j==0):
-#	  lines.append(subpl.plot(k_max+i*options.shift, mean[:,j], c=col,
-#	    ls=ls, lw=options.lwidth, marker=m, ms=options.smarker))
-#	else:
-#	  subpl.plot(k_max+i*options.shift, mean[:,j], c=col, ls=ls,
-#	      lw=options.lwidth, marker=m, ms=options.smarker)
-#	if(options.outfile != None and os.path.splitext(options.outfile)[1] == '.eps'):
-#	  subpl.fill_between(k_max+i*options.shift, mean[:,j]+stddev[:,j],
-#	      mean[:,j]-stddev[:,j], color=[140./255., 130./255., 255./255.,
-#		1.], zorder=1)   #this is when eps is generated
-#	else:
-#	  subpl.fill_between(k_max+i*options.shift, mean[:,j]+stddev[:,j],
-#	      mean[:,j]-stddev[:,j], color=col, alpha=a, edgecolor="w")
-#      if(h[0] != None):
-#	subpl.plot([k_max[0]*0.95,(k_max[-1]+i*options.shift)*1.02], [h[1],h[1]], 'k--')
-#  
-#      if(yl[0] == None):
-#	label = "$"+paramnames[c-2].strip().split()[1]+"$"
-#	if(np.absolute(r-1) > 1e-3):   #if a rescale required
-#	  if(r.is_integer()==True):
-#	    strr = str(int(r))
-#	  else:
-#	    strr = str(r)
-#	  label = "$"+strr+"$"+label
-#      else:
-#	label = yl[1]
-#      subpl.set_ylabel(label, fontsize=options.fsize)
-#
-#      if( yr[0] != None ):  #set the custom yrange
-#	subpl.set_ylim( bottom=float(yr[1]), top=float(yr[2]) )
 #      #exclude the first and the last visible tick labels
 #      ymin,ymax = subpl.get_ylim()
 #      ytl = subpl.get_ymajorticklabels()
@@ -793,39 +819,5 @@ if __name__ == "__main__":   # if is the main
 #      if(len(ytl)-2>5):
 #        for iy in range(2,len(ytl)-1,2):
 #	  ytl[iy].set_visible(False)
-#      for iy in range(len(ytl)):   #set tick label font size
-#	ytl[iy].set_fontsize(options.fsize)
-#      if(j < n_plots-1):
-#	subpl.set_xticklabels([])
-#      else:
-#	subpl.set_xlabel("$k_{\mathrm{max}}\,[h/Mpc]$", fontsize=options.fsize)
-#	xtl = subpl.get_xmajorticklabels()  #get xlabels and change font size
-#	for ix in range(len(xtl)):   #set tick label font size
-#	  xtl[ix].set_fontsize(options.fsize)
-#      for label in subpl.get_xticklabels():
-#	label.set_fontsize(options.fsize)
-#      for label in subpl.get_yticklabels():
-#	label.set_fontsize(options.fsize)
-#
-#      subpl.set_xlim([k_max[0]*0.95, (k_max[-1]+i*options.shift)*1.02])  #set the axis size
-#
-#  if(options.legend != None and options.fleg == None):   #draw the legend in the desired axes
-#    box = [options.bounds[0],
-#	options.bounds[1]+(n_plots-options.legend-1)*rheight,
-#	options.bounds[2]-options.bounds[0], rheight]   #create the plot box
-#    subpl = fig.add_axes(box)  #create a subplots
-#    l = subpl.legend(lines, leg, loc="best", numpoints=1, borderpad=0.3,
-#	columnspacing=0.8, handlelength=1.4, borderaxespad=0.1,
-#	labelspacing=0.2)
-#    l.draw_frame(False)
-#  if( options.fleg != None):  #draw figure legend
-#    l = fig.legend(lines, leg, loc=options.fleg, numpoints=1, borderpad=0.3,
-#	columnspacing=0.8, handlelength=1.4, borderaxespad=0.1,
-#	labelspacing=0.2, frameon=False)
-#
-#  if(options.outfile == None):
-#    plt.show()
-#  else:
-#    plt.savefig(options.outfile)
-#
-#  sys.exit()
+
+
