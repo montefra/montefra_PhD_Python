@@ -1,4 +1,4 @@
-!/usr/bin/python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 #import matplotlib.ticker as tic  #axis formatter
@@ -191,7 +191,7 @@ in the first plot""")
         def __call__(self, parser, namespace, values, option_string=None):
             lines = get_ini()
             lines = lines.split('\n')
-            lines = [l.strip() for l in lines[1:]]
+            lines = [l[4:] for l in lines[1:]]
             lines = '\n'.join(lines)
             with open("sample.ini", 'w') as f:
                 f.write(lines)
@@ -205,10 +205,14 @@ in the first plot""")
 
 
 class IniNumber(Exception):
-    def __init__(self, key, n):
+    def __init__(self, key, n=None):
         """gets the keyword name and the number of elements it should have"""
-        string = "Keyword '{}' can have only 1 or {} elements"
-        self.string = string.format(key, n)
+        if n is None:
+            string = "Keyword '{}' must have 1 elements"
+            self.string = string.format(key)
+        else:
+            string = "Keyword '{}' can have only 1 or {} elements"
+            self.string = string.format(key, n)
     def __str__(self):
         return repr(self.string)
 
@@ -236,19 +240,27 @@ def read_ini(ini, n_froot):
         the keyword kmin 
     """
     from configparser import ConfigParse
+
     # initialise and get the default section (no other used)
     config = ConfigParser()
     config.read_file(ini)
     config = config['default']  
+
     # get the parameters
     # n_params
-    n_params = config.getint('n_params')
+    if 'n_params' in config:
+        n_params = config.getint('n_params')
+    else:
+        raise IniNumber('n_params')
+
     # n_mocks
-    n_mocks = [int(nm) for nm in config.get('n_mocks').split()]
-    if len(n_mocks) == 1:
-        n_mocks = n_mocks*n_froot
-    if len(n_mocks) != n_froot:
-        raise IniNumber("n_mocks", n_froot)
+    if 'n_mocks' in config:
+        n_mocks = [int(nm) for nm in config.get('n_mocks').split()]
+        if len(n_mocks) == 1:
+            n_mocks = n_mocks*n_froot
+        if len(n_mocks) != n_froot:
+            raise IniNumber("n_mocks", n_froot)
+
     # pk_files: read the first column
     pk_files = config.get('pk_files').split()
     if len(pk_files) == n_froot:
@@ -257,6 +269,7 @@ def read_ini(ini, n_froot):
         k_from_files = [np.loadtxt(pk_files[0], usecols=[0,]),]*n_froot
     else:
         raise IniNumber("pk_files", n_froot)
+
     # kmin
     kmin = [float(km) for km in config.get('kmin').split()]
     if len(kmin) == 1:
