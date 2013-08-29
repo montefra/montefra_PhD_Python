@@ -19,18 +19,27 @@ def get_ini():
     """
     inifile = """
     [default]
-    #test config parser for Python/Plots/par_vs_k.py
-    #number of parameters
+    # test config parser for Python/Plots/par_vs_k.py
+    # number of parameters
     n_params = 4
-    #number of mocks used: can be either 1 element (the same for all froot) or as many as the number of froot
+    # number of mocks used: can be either 1 element (the same for all froot) or
+    # as many as the number of froot
     #n_mocks = 600
     n_mocks = 600 300 
-    #measurement file name used to compute the number of bins used (assumed to be the first column) 
+    # if the covariance is computed as the mean of two covariances with
+    # correlation r_mocks correct for it. Can be either 1 element (the same for
+    # all froot) or as many as the number of froot. If not given, or negative
+    # or correction ignored
+    #r_mocks = 0.33
+    r_mocks = -1 0.33
+
+    # measurement file name used to compute the number of bins used (assumed to
+    # be the first column) 
     # Can be either one or as many as the number of froot
     pk_dir = /data01/montefra/PThalos/V5.2/PS_win
     pk_files = %(pk_dir)s/ps_pthalos-v5.2-irmean.south.4000.1200.500.pw20000.masTSC.corr2.wmissboss.sectcomp.even.dat_rancorr.dat 
                %(pk_dir)s/ps_pthalos-v5.2-irmean.south.4000.1200.100.pw20000.masTSC.corr2.wmissboss.sectcomp.even.dat_rancorr.dat 
-    #minimum value of k used. Can be either one or as many as the number of froot
+    # minimum value of k used. Can be either one or as many as the number of froot
     kmin = 0.02
     #kmin = 0.02 0.05
     """
@@ -204,18 +213,21 @@ in the first plot""")
 #end def parse(argv)
 
 
+# custom errors and warnings
 class IniNumber(Exception):
-    def __init__(self, key, n=None):
+    def __init__(self, key, n):
         """gets the keyword name and the number of elements it should have"""
-        if n is None:
-            string = "Keyword '{}' must have 1 elements"
-            self.string = string.format(key)
-        else:
-            string = "Keyword '{}' can have only 1 or {} elements"
-            self.string = string.format(key, n)
+        string = "Keyword '{}' can have only 1 or {} elements"
+        self.string = string.format(key, n)
     def __str__(self):
         return repr(self.string)
-
+class IniNotFound(Exception):
+    def __init__(self, key):
+        """Key not found"""
+        string = "Keyword '{}' has not been found"
+        self.string = string.format(key)
+    def __str__(self):
+        return repr(self.string)
 class MyWarning(UserWarning):
     pass
 
@@ -231,8 +243,9 @@ def read_ini(ini, n_froot):
     ------
     n_params: int
         number of model parameters
-    n_mocks: list of int of len n_froot
-        number of mocks used to create che covariance matrix for each froot
+    n_mocks: list of tuples of size 2 of len n_froot
+        number of mocks and correlation, if a mean computed, used to create che
+        covariance matrix for each froot
     k_from_files: list of len n_froot of ndarrays 
         firs columns of the files given in keyword pk_files
     ind_kmin: list of int of len n_froot
@@ -251,33 +264,57 @@ def read_ini(ini, n_froot):
     if 'n_params' in config:
         n_params = config.getint('n_params')
     else:
-        raise IniNumber('n_params')
+        raise IniNotFound('n_params')
 
     # n_mocks
     if 'n_mocks' in config:
         n_mocks = [int(nm) for nm in config.get('n_mocks').split()]
         if len(n_mocks) == 1:
-            n_mocks = n_mocks*n_froot
+            n_mocks = [n_mocks for n in range(n_froot)]
         if len(n_mocks) != n_froot:
             raise IniNumber("n_mocks", n_froot)
+    else:
+        raise IniNotFound('n_mocks')
+
+    # correlation between mocks when computing the covariance as the average
+    # of two. Not mandatory
+    r_mocks = config.get('r_mocks')
+    if r_mocks is None:
+        r_mocks = [-1 for n in n_froot]
+    else:
+        r_mocks = [int(r) for r in r_mocks.split()]
+        if len(r_mocks) == 1:
+            r_mocks = [r_mocks for n in n_froot]
+        if len(r_mocks) != n_froot:
+            raise IniNumber("r_mocks", n_froot)
+
+    # zip n_mocks and r_mocks and save to n_mocks
+    n_mocks = list(zip(n_mocks, r_mocks))
 
     # pk_files: read the first column
-    pk_files = config.get('pk_files').split()
-    if len(pk_files) == n_froot:
-        k_from_files = [np.loadtxt(fn, usecols=[0,]) for fn in pk_files]
-    elif len(pk_files) == 1:
-        k_from_files = [np.loadtxt(pk_files[0], usecols=[0,]),]*n_froot
+    if 'pk_files' in config:
+        pk_files = config.get('pk_files').split()
+        if len(pk_files) == n_froot:
+            k_from_files = [np.loadtxt(fn, usecols=[0,]) for fn in pk_files]
+        elif len(pk_files) == 1:
+            k_from_files = np.loadtxt(pk_files[0], usecols=[0,])
+            k_from_files = [k_from_files.copy() for n in n_froot]
+        else:
+            raise IniNumber("pk_files", n_froot)
     else:
-        raise IniNumber("pk_files", n_froot)
+        raise IniNotFound('pk_files')
 
     # kmin
-    kmin = [float(km) for km in config.get('kmin').split()]
-    if len(kmin) == 1:
-        kmin = kmin*n_froot
-    if len(kmin) != n_froot:
-        raise IniNumber("kmin", n_froot)
+    if 'kmin' in config:
+        kmin = [float(km) for km in config.get('kmin').split()]
+        if len(kmin) == 1:
+            kmin = [kmin for n in n_froot]
+        if len(kmin) != n_froot:
+            raise IniNumber("kmin", n_froot)
+        else:
+            ind_kmin = [(k<km).sum() for km, k in zip(kmin, k_from_files)]
     else:
-        ind_kmin = [(k<km).sum() for km, k in zip(kmin, k_from_files)]
+        raise IniNotFound('kmin')
 
     return n_params, n_mocks, k_from_files, ind_kmin
 #end def read_ini(ini, n_froot):
@@ -320,13 +357,19 @@ def kmax_correction(krange, stride, n_froot, shift=None, ini=None):
         ndit = np.nditer([correction, kmax], flags=['multi_index'],
                 op_flags=['readwrite'])
         while not ndit.finished: #loop untill the end of the iterator
-            ind0, ind1 = ndit.multi_index # the the two indeces
-            #number of bins in given file with give k_max
+            ind0, ind1 = ndit.multi_index # the two indeces
+            # number of bins in given file with give k_max
             nbins = np.sum(k_from_files[ind0]<it[1])-ind_kmin[ind0]
-            # compute m1 and save into corr
-            denominator = (n_mocks[ind0]-nbins-1.) * (n_mocks[ind0]-nbins-4.)
+            # compute A and B
+            n_m, r_m = n_mocks[ind0]
+            denominator = (n_m-nbins-1.) * (n_m-nbins-4.)
             A = 2./denominator
-            B = (n_mocks[ind1]-nbins-2.)/denominator
+            B = (n_m-nbins-2.)/denominator
+            if r_m >= 0: # do the correction if there is any correlation
+                r_c = (1.+r_m**2)/2.
+                A *= r_c
+                B += r_c
+            # m1 and save into correction
             it[0] = (1.+B*(nbins-n_params)) / (1.+A+B*(n_params+1.))
             ndit.iternext()
 
