@@ -423,7 +423,7 @@ def multiple_of(multiple, reshape=False):
                 raise ap.ArgumentTypeError(msg)
             if reshape:
                 output = [values[multiple*i:multiple*(i+1)] for i in
-                        xrange(len(values)/multiple)]
+                        range(len(values)//multiple)]
             else:
                 output = values
             setattr(args, self.dest, output)

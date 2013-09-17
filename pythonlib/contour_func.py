@@ -87,7 +87,7 @@ def _get_paramnames(fname, params=None, verbose=False, skip=False):
                     parindex.append([i, tmn[0], tmn[1]]) 
                     break
         if len(parindex) != len(params):
-            ContourError("""File '{}' doesn't have at least one of the
+            raise ContourError("""File '{}' doesn't have at least one of the
                     parameters '{}'""".format(fname, params))
     return parindex
 
