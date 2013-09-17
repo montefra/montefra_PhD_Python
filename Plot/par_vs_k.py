@@ -23,9 +23,9 @@ def get_ini():
     # number of parameters
     n_params = 4
     # number of mocks used: can be either 1 element (the same for all froot) or
-    # as many as the number of froot
+    # as many as the number of froot. If negative the correction not computed
     #n_mocks = 600
-    n_mocks = 600 300 
+    n_mocks = -1 300
     # if the covariance is computed as the mean of two covariances with
     # correlation r_mocks correct for it. Can be either 1 element (the same for
     # all froot) or as many as the number of froot. If not given, or negative
@@ -108,6 +108,9 @@ def parse(argv):
     # plot options
     pp = p.add_argument_group(description="Plot related options")
 
+    pp.add_argument("--variance-only", action="store_true", 
+            help="""Plot only the variance.""")
+
     pp.add_argument("-c", "--columns", action="store", nargs='+', 
             help="""Name of the columns to plot, as appears in the first column of
 each parameter file name. If not given, all columns are read""")
@@ -132,19 +135,21 @@ Ignored if 'fill-between' is used""")
 with transparencies in the range [0,1]. 
 No transparency for eps.""")
 
-    pp.add_argument("--horizontal", type=float, nargs='+',
+    pp.add_argument("--horizontal", nargs='+',
             action=apc.multiple_of(2, reshape=True), 
             help="""Plot an horizontal line in subplot '%(dest)s[0]' at
 y='%(dest)s[1]'. The sublot is identified with the short name 
 from the parameter file. Multiple lines can be drawn providing 
 couple of subplot-line.""")
 
+    pp.add_argument("--figsize", type=float, nargs=2,
+            action=apc.Cm2Inch, help="Figure size in cm")
     pp.add_argument("-b", "--bounds", action="store", type=float, nargs=4,
             default=[0, 0, 1, 1], 
             help="""(left, bottom, right, top) in the normalized figure
 coordinate passed to 'plt.tight_layout'""")
 
-    pp.add_argument("-r", "--rescale", type=float, nargs='+',
+    pp.add_argument("-r", "--rescale", nargs='+',
             action=apc.multiple_of(2, reshape=True), 
             help="""Rescale the abscissa in subplot '%(dest)s[0]' by
 '%(dest)s[1]'. The same rescaling factor is shown in 
@@ -252,7 +257,7 @@ def read_ini(ini, n_froot):
         indeces of the first elements in k_from_files larger than value(s) in
         the keyword kmin 
     """
-    from configparser import ConfigParse
+    from configparser import ConfigParser
 
     # initialise and get the default section (no other used)
     config = ConfigParser()
@@ -270,7 +275,7 @@ def read_ini(ini, n_froot):
     if 'n_mocks' in config:
         n_mocks = [int(nm) for nm in config.get('n_mocks').split()]
         if len(n_mocks) == 1:
-            n_mocks = [n_mocks for n in range(n_froot)]
+            n_mocks = [n_mocks[0] for n in range(n_froot)]
         if len(n_mocks) != n_froot:
             raise IniNumber("n_mocks", n_froot)
     else:
@@ -282,9 +287,9 @@ def read_ini(ini, n_froot):
     if r_mocks is None:
         r_mocks = [-1 for n in n_froot]
     else:
-        r_mocks = [int(r) for r in r_mocks.split()]
+        r_mocks = [float(r) for r in r_mocks.split()]
         if len(r_mocks) == 1:
-            r_mocks = [r_mocks for n in n_froot]
+            r_mocks = [r_mocks[0] for n in range(n_froot)]
         if len(r_mocks) != n_froot:
             raise IniNumber("r_mocks", n_froot)
 
@@ -298,7 +303,7 @@ def read_ini(ini, n_froot):
             k_from_files = [np.loadtxt(fn, usecols=[0,]) for fn in pk_files]
         elif len(pk_files) == 1:
             k_from_files = np.loadtxt(pk_files[0], usecols=[0,])
-            k_from_files = [k_from_files.copy() for n in n_froot]
+            k_from_files = [k_from_files.copy() for n in range(n_froot)]
         else:
             raise IniNumber("pk_files", n_froot)
     else:
@@ -308,7 +313,7 @@ def read_ini(ini, n_froot):
     if 'kmin' in config:
         kmin = [float(km) for km in config.get('kmin').split()]
         if len(kmin) == 1:
-            kmin = [kmin for n in n_froot]
+            kmin = [kmin for n in range(n_froot)]
         if len(kmin) != n_froot:
             raise IniNumber("kmin", n_froot)
         else:
@@ -359,18 +364,21 @@ def kmax_correction(krange, stride, n_froot, shift=None, ini=None):
         while not ndit.finished: #loop untill the end of the iterator
             ind0, ind1 = ndit.multi_index # the two indeces
             # number of bins in given file with give k_max
-            nbins = np.sum(k_from_files[ind0]<it[1])-ind_kmin[ind0]
+            nbins = np.sum(k_from_files[ind0]<ndit[1])-ind_kmin[ind0]
             # compute A and B
             n_m, r_m = n_mocks[ind0]
-            denominator = (n_m-nbins-1.) * (n_m-nbins-4.)
-            A = 2./denominator
-            B = (n_m-nbins-2.)/denominator
-            if r_m >= 0: # do the correction if there is any correlation
-                r_c = (1.+r_m**2)/2.
-                A *= r_c
-                B += r_c
-            # m1 and save into correction
-            it[0] = (1.+B*(nbins-n_params)) / (1.+A+B*(n_params+1.))
+            if n_m <= 0:
+                ndit[0] = 1.
+            else:
+                denominator = (n_m-nbins-1.) * (n_m-nbins-4.)
+                A = 2./denominator
+                B = (n_m-nbins-2.)/denominator
+                if r_m >= 0: # do the correction if there is any correlation
+                    r_c = (1.+r_m**2)/2.
+                    A *= r_c
+                    B *= r_c
+                # m1 and save into correction
+                ndit[0] = np.sqrt((1.+B*(nbins-n_params)) / (1.+A+B*(n_params+1.)))
             ndit.iternext()
 
     # shift the kmax
@@ -505,7 +513,7 @@ def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
         ind0, ind1 = ndit.multi_index # the two indeces
         try:  #try to read files and save the mean and stddev
             paramindex = cf.get_paramnames(str(ndit[0]), params=params, ext="",
-                verbose=verbose, skip=args.skip)
+                verbose=verbose, skip=skip)
             indeces, short_name, long_name = [], [], []
             for pi in paramindex:
                 indeces.append(pi[0]+2)
@@ -537,6 +545,11 @@ def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
         except cf.ContourError: 
             pass
         ndit.iternext()
+
+    # if nothing found in the files
+    if len(key_list) == 0:
+        print("No parameter found")
+        sys.exit(10)
 
     return key_list, labels, mean, stddev
 #end def files_to_mean_std(paramname, chains, params=None, verbose=True, skip=False):
@@ -580,6 +593,7 @@ def rescale_y(rescale, mean, std, labels):
         if k not in mean:
             warn("Key '{}' is not in mean and std dictionaries".format(k), MyWarning)
         else:
+            r = float(r)
             mean[k] = mean[k]*r
             std[k] = std[k]*r
             if(r.is_integer()==True):
@@ -602,7 +616,7 @@ def subsitute_ylabels(new_labels, labels):
     ------
     labels: same as input with new labels
     """
-    for k, v in new_label:
+    for k, v in new_labels:
         if k not in labels:
             warn("Key '{}' is not in labels dictionary".format(k), MyWarning)
         else:
@@ -634,7 +648,7 @@ def set_mpl_defaults(fsize, leg_fsize, lw, ms):
     mpl.rcParams['lines.linewidth'] = lw
     mpl.rcParams['lines.markersize' ] = ms
 
-def make_figure(key_list, labels):
+def make_figure(key_list, labels, figsize=None):
     """
     Create the figure with len(key_list) subplots. Save the subplots into a
     dictionary and make the x and y axis labels
@@ -645,6 +659,8 @@ def make_figure(key_list, labels):
         parameter files
     labels: dict
         dictionary with key: short name; value: y label
+    figsize: two floats
+        custom figure size in inches
     output
     ------
     fig: matplotlib figure
@@ -653,8 +669,11 @@ def make_figure(key_list, labels):
     """
     n_subplots = len(key_list)
     # window size
-    xs= 10./mpm.inc2cm
-    ys= 2.6*(n_subplots+1)/mpm.inc2cm
+    if figsize is None:
+        xs= 10./mpm.inc2cm
+        ys= 2.6*(n_subplots+1)/mpm.inc2cm
+    else:
+        xs, ys = figsize
 
     fig, axs = plt.subplots(nrows=n_subplots, ncols=1, sharex=True,
             figsize=(xs, ys))
@@ -668,8 +687,6 @@ def make_figure(key_list, labels):
 
     #set the x label for the last plot
     axs_dic[key_list[-1]].set_xlabel("$k_{\mathrm{max}}\,[h/Mpc]$")
-    #set the x limit a bit larger than the plotted ones
-    ax.set_xlim(kmax.min()*0.95, kmax.max()*1.04)
 
     return fig, axs_dic
 
@@ -704,11 +721,42 @@ def plot(axs_dic, kmax, mean, stddev, fill=None):
                 linestyles, markers, alphas):
             toplot = np.isfinite(m)  # if any of the elements does not exists, skip it
             if fill is None:
-                ax.errorbar(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls, marker=ma, alpha=alpha)
+                ax.errorbar(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls,
+                        marker=ma, alpha=alpha, label='temp')
             else:
                 from errorfill import errorfill
-                errorfill(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls, alpha_fill=alpha, ax=ax)
+                errorfill(k[toplot], m[toplot], yerr=s[toplot], c=c, ls=ls,
+                        alpha_fill=alpha, ax=ax, label='temp')
+
+    #set the x limit a bit larger than the plotted ones
+    ax.set_xlim(kmax.min()*0.95, kmax.max()*1.04)
 #end def plot(axs_dic, kmax, mean, stddev, fill=None):
+def plot_variance(axs_dic, kmax, stddev):
+    """
+    Populate the axes with plots with only the variance
+    Parameters
+    ----------
+    axs_dic: dict
+        key: short param names; value: plt.subplot
+    kmax: nd_array
+        values of kmax to plot
+    stddev: dict
+        key: short param names; value: nd_array of kmax.shape with the standard deviations
+    """
+    for k, ax in axs_dic.items():  #loop over the axes
+        #reset colors, line style and markers for every axes
+        colors = it.cycle(mpm.colors)
+        linestyles = it.cycle(mpm.linestyles)
+        markers = it.cycle(mpm.symbols[2:-2])
+
+        for k, s, c, ls, ma in zip(kmax, stddev[k], colors,
+                linestyles, markers):
+            toplot = np.isfinite(s)  # if any of the elements does not exists, skip it
+            ax.plot(k[toplot], s[toplot], c=c, ls=ls, marker=ma, label='temp')
+
+    #set the x limit a bit larger than the plotted ones
+    ax.set_xlim(kmax.min()*0.95, kmax.max()*1.04)
+#end def plot_variance(axs_dic, kmax, stddev, fill=None):
 
 def plot_horiz(axs_dic, horiz):
     """
@@ -727,7 +775,7 @@ def plot_horiz(axs_dic, horiz):
         if k not in axs_dic:
             warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
         else:
-            axs_dic[k].axhline(y=v, color='k', ls=':')
+            axs_dic[k].axhline(y=float(v), color='k', ls=':')
 
 def change_ylim(axs_dic, y_lim):
     """
@@ -747,6 +795,23 @@ def change_ylim(axs_dic, y_lim):
             warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
         else:
             axs_dic[k].set_ylim(v)
+
+def shave_y_tick_labels(axs_dic):
+    """
+    automatically removes the first and last tick labels to avoid overlap and
+    if ther are more than 5 labels, print only one out of two
+    """
+    for ax in axs_dic.values():
+        ymin,ymax = ax.get_ylim()
+        # get y tick labels and locks
+        ytl = ax.get_ymajorticklabels()
+        tl = ax.yaxis.get_majorticklocs()
+        # make invisible the labels outside the plotted limits
+        ytl[(tl<ymin).sum()].set_visible(False)
+        ytl[-(tl>ymax).sum()-1].set_visible(False)
+        if(len(ytl)-2>5):  # if necessary make invisible one every second
+            for iy in range(2,len(ytl)-1,2):
+                ytl[iy].set_visible(False)
 
 def draw_legend(fig, axs_dic, labels, whichax, loc):
     """
@@ -768,14 +833,15 @@ def draw_legend(fig, axs_dic, labels, whichax, loc):
         ax = axs_dic[whichax]
         handles,_ = ax.get_legend_handles_labels()
     except KeyError:
+        ax = list(axs_dic.values())[0]
+        handles,_ = ax.get_legend_handles_labels()
         ax = fig
-        handles, _ = list(axs_dic.values())[0]
 
     ax.legend(handles, labels, loc=loc)
 
 
-def main():
-    args = parse(sys.argv[1:])
+def main(argv):
+    args = parse(argv)
 
     # command line parameter checks
     if args.legend is not None and len(args.legend)!=len(args.froot):
@@ -836,17 +902,22 @@ def main():
         print("Set up the plot area")
     set_mpl_defaults(args.font_size, args.legend_fsize, args.line_width,
             args.marker_size)
-    fig, daxs = make_figure(short_names, labels_dic)
+    fig, daxs = make_figure(short_names, labels_dic, figsize=args.figsize)
 
     if args.verbose:
         print("Plot mean and stddev")
-    plot(daxs, k_max, mean_dic, std_dic, fill=args.fill)
+    if args.variance_only:
+        plot_variance(daxs, k_max, std_dic)
+    else:
+        plot(daxs, k_max, mean_dic, std_dic, fill=args.fill)
 
     if args.horizontal is not None:
         plot_horiz(daxs, args.horizontal)
 
     if args.y_range is not None:
         change_ylim(daxs, args.y_range)
+
+    shave_y_tick_labels(daxs)
 
     # legend
     if args.legend is not None:
@@ -862,18 +933,9 @@ def main():
 
 if __name__ == "__main__":   # if is the main
 
-    main()
+    main(sys.argv[1:])
     exit()
     
 
-#      #exclude the first and the last visible tick labels
-#      ymin,ymax = subpl.get_ylim()
-#      ytl = subpl.get_ymajorticklabels()
-#      tl = subpl.yaxis.get_majorticklocs()
-#      ytl[(tl<ymin).sum()].set_visible(False)
-#      ytl[-(tl>ymax).sum()-1].set_visible(False)
-#      if(len(ytl)-2>5):
-#        for iy in range(2,len(ytl)-1,2):
-#	  ytl[iy].set_visible(False)
 
 
