@@ -89,6 +89,12 @@ def parse(argv):
             enought file, and rows in 'correct_sh', in order to get the the
             desired number""")
 
+    p.add_argument("--fmt-ps", default="%7.6e", action=apc.StoreFmt, nargs='+',
+            help="Format of the output mean files")
+
+    p.add_argument("--fmt-cov", default="%7.6e", 
+            help="Format of the output covariance files")
+
     return p.parse_args(args=argv)
 # end def parse(argv)
 
@@ -320,7 +326,7 @@ def check_ofiles(ofname, cases, overwrite=False, covfname=None, before=None):
         return ofnames, covfnames
 # end def check_ofiles(ofname, cases, overwrite=False, covfname=None, before=None):
 
-def print_pk(ofnames, k, mean, std, n_modes, header=None):
+def print_pk(ofnames, k, mean, std, n_modes, header=None, fmt=None):
     """
     Save the power spectra 'pk' in files 'ofnames'.
     Parameters
@@ -342,7 +348,8 @@ def print_pk(ofnames, k, mean, std, n_modes, header=None):
     header_post= "#\tk\tmean P(k)\tstddev P(k)\tn_modes\n"
     header_line_start = ["mean_data", "mean_random", "stddev_data", "stddev_random"]
     header_template = "#{0}\t{1[0]:.4f}\t{1[1]:.4f}\t{1[2]:.4f}\n"
-    fmt = ['%7.6e', '%7.6e', '%7.6e', '%d' ]
+    if fmt is None:
+        fmt = ['%7.6e', '%7.6e', '%7.6e', '%d' ]
     for key, fvalue in ofnames.iteritems(): #iter through the file names
         with open(fvalue, 'w') as f:
             if header is not None: #write the header if not given
@@ -353,7 +360,7 @@ def print_pk(ofnames, k, mean, std, n_modes, header=None):
             np.savetxt(f, np.vstack([k, mean[key], std[key], n_modes]).T, delimiter='\t', fmt=fmt)
 # end def print_pk(ofnames, k, mean, std, n_modes, header=None):
 
-def print_cov(ofnames, cov, k=None):
+def print_cov(ofnames, cov, k=None, fmt=None):
     """
     Save to files the covariance matrices.
     Parameters
@@ -365,10 +372,12 @@ def print_cov(ofnames, cov, k=None):
     k: 1D numpy array (optional)
         values of k for the covariance matrix. Written as header if provided
     """
+    if fmt is None:
+        fmt = "%7.6e"
     for key, fvalue in ofnames.iteritems():
         with open(fvalue, 'w') as f:
             f.write("#k: "+"\t".join(['{0:7.6e}'.format(kk) for kk in k])+"\n")
-            np.savetxt(f, cov[key], delimiter='\t', fmt='%7.6e')
+            np.savetxt(f, cov[key], delimiter='\t', fmt=fmt)
 
 def check_choises(norm_sh, correct_sh=None):
     """
@@ -430,7 +439,7 @@ if __name__ == "__main__":   #if it's the main
     meanpk, stdpk = mean_std_pks(pk)
     if args.verbose:
         print("Print the mean and standard deviations")
-    print_pk(ofnames, k, meanpk, stdpk, n_modes, header=header_mean_std)
+    print_pk(ofnames, k, meanpk, stdpk, n_modes, header=header_mean_std, fmt=args.fmt_ps)
 
     # do the covariance
     if args.covariance is not None:
@@ -439,7 +448,7 @@ if __name__ == "__main__":   #if it's the main
         covmat = covariance(pk)
         if args.verbose:
             print("Print the covariance matrices")
-        print_cov(covfnames, covmat, k=k)
+        print_cov(covfnames, covmat, k=k, fmt=args.fmt_cov)
 
 
     exit()

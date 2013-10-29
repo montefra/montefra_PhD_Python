@@ -44,6 +44,9 @@ def parse(argv):
             default=0.65, dest='fkN',
             help="All the modes larger than fkN*k[-1] are discarded.")
 
+    p.add_argument("--fmt", default="%7.6e", action=apc.StoreFmt, nargs='+',
+            help="Format of the output files")
+
     smooth = p.add_argument_group(title='Smoothing', 
             description="""Smooth (or fit) the merged files""")
     excsmooth = smooth.add_mutually_exclusive_group()
@@ -166,7 +169,7 @@ if __name__ == "__main__":   # if is the main
         lna, b = np.linalg.lstsq(lnk, lnw)[0]  #do the fit
         win[args.k[0]:args.k[1], 1] = np.exp(lna) * win[args.k[0]:args.k[1], 0]**b 
 
-    np.savetxt(args.ofname, win, fmt='%7.6e', delimiter='\t')
+    np.savetxt(args.ofname, win, fmt=args.fmt, delimiter='\t')
 
     exit()
 
