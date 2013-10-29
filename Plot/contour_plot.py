@@ -288,8 +288,8 @@ if __name__ == "__main__":   # if is the main
                 txt[i].set_color(list(line.get_color()[0]))
 
     #save or display the figure
-    plt.tight_layout()
-    if(args.output == None):
+    fig.tight_layout()
+    if args.output is None:
         plt.show()
     else:
         fig.savefig(args.output)
