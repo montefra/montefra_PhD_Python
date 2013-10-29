@@ -16,6 +16,21 @@ numsy = len(symbols)  #number of symbols
 colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k'] #, 'w']  #easy color array
 numcol = len(colors)  #number of colors
 
+def MNRAS_fig():
+    """
+    Set default matplotlibrc parameters for MNRAS figures
+    Parameters
+    ----------
+    figsize: list
+        size of the figure. Default for figure with one panel
+    """
+    from matplotlib import rcParams
+
+    rcParams['axes.labelsize'] = 10
+    rcParams['axes.titlesize'] = 10
+    rcParams['font.size'] = 10
+    rcParams['legend.fontsize'] = 8
+    rcParams['lines.linewidth'] = 1.5
 
 def options(option):
   """this function set some default parse option that can be used by lot of programs
