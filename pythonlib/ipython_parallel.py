@@ -10,7 +10,7 @@ class Load_balanced_view(object):
     progress log. A cleanup function provided
     """
 
-    def __init__(self, client=None):
+    def __init__(self, client=None, profile='default'):
         """
         Start a load_balanced_view from IPython.parallel.  If a client is not
         given, checks are run to see if ipcluster exists and engines are
@@ -22,6 +22,7 @@ class Load_balanced_view(object):
         ----------
         *client*: an IPython parallel client
             if *None* a new object created
+        *profile*: Ipython profile. Used if *client* is not *None*
         """
 
         self.do_parallel = True   #everything ok 
@@ -29,7 +30,7 @@ class Load_balanced_view(object):
             if client != None:
                 self.c = client
             else:
-                self.c = Client() 
+                self.c = Client(profile=profile) 
             self.engines_id = self.c.ids  #get the id of the engines
             self.dview = self.c[:]
             self.lbview = self.c.load_balanced_view() #load view
@@ -37,7 +38,7 @@ class Load_balanced_view(object):
             print( """Ipython.parallel.Client cannot be imported.\
  Make sure to have Ipython version > 0.11 installed.""" )
             self.do_parallel = self._continue_serial()
-        except IOError:  #if Ipython is not present
+        except error.NoEnginesRegistered:  #if Ipython is not present
             print( """The Ipython cluster has not been started start it\
  before executing the code. e.g. 'ipcluster start --n=4'.""")
             self.do_parallel = self._continue_serial()
