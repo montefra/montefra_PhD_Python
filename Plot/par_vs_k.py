@@ -118,6 +118,8 @@ each parameter file name. If not given, all columns are read""")
     pp.add_argument("-n", "--nsigma", action="store", type=int, default="1",
             help="Plot the ns-sigma error bars.")
 
+    pp.add_argument("--set-MNRAS", action='store_true', 
+            help='Use MNRAS presets for plotting')
     pp.add_argument("-m", "--marker-size", action="store", type=float,
             default="4", help="Marker size.")
     pp.add_argument("--font-size", action="store", type=int, 
@@ -157,13 +159,14 @@ the y label. The sublot is identified with the short
 name from the parameter file. Multiple rescaling can 
 be drawn providing couple of subplot-rescaling.""")
             
+    pp.add_argument("--x-label", default="$k_{\mathrm{max}}\,[h/Mpc]$", help='x axis label')
     pp.add_argument("--y-label", nargs='+', action=apc.multiple_of(2, reshape=True), 
             help="""Set y axis label in subplot '%(dest)s[0]' to '%(dest)s[1]'.
 The sublot is identified with the short name 
 from the parameter file. Multiple labels can 
 be drawn providing couple of subplot-label.""")
 
-    pp.add_argument("--y-range", nargs='+', action=apc.multiple_of(2, reshape=True), 
+    pp.add_argument("--y-range", nargs='+', action=apc.multiple_of(3, reshape=True), 
             help="""Set y axis range in subplot '%(dest)s[0]' to '%(dest)s[1]'.
 The sublot is identified with the short name 
 from the parameter file. Multiple ranges can 
@@ -648,7 +651,7 @@ def set_mpl_defaults(fsize, leg_fsize, lw, ms):
     mpl.rcParams['lines.linewidth'] = lw
     mpl.rcParams['lines.markersize' ] = ms
 
-def make_figure(key_list, labels, figsize=None):
+def make_figure(key_list, xlabel, ylabels, figsize=None):
     """
     Create the figure with len(key_list) subplots. Save the subplots into a
     dictionary and make the x and y axis labels
@@ -677,16 +680,18 @@ def make_figure(key_list, labels, figsize=None):
 
     fig, axs = plt.subplots(nrows=n_subplots, ncols=1, sharex=True,
             figsize=(xs, ys))
+    if n_subplots==1:
+        axs = np.array([axs])
     # move the axs to a dictionary with the elements of key_list as key. Also
     # set the ylabels and remove the x labels except in the last plot
     axs_dic={}
     for k, ax in zip(key_list, axs):
         ax.label_outer()
-        ax.set_ylabel(labels[k])
+        ax.set_ylabel(ylabels[k])
         axs_dic[k] = ax
 
     #set the x label for the last plot
-    axs_dic[key_list[-1]].set_xlabel("$k_{\mathrm{max}}\,[h/Mpc]$")
+    axs_dic[key_list[-1]].set_xlabel(xlabel)
 
     return fig, axs_dic
 
@@ -790,17 +795,18 @@ def change_ylim(axs_dic, y_lim):
     ------
     horiz: same as input with new horizontal lines
     """
-    for k, v in horiz:
+    for k, v1, v2 in y_lim:
         if k not in axs_dic:
             warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
         else:
-            axs_dic[k].set_ylim(v)
+            axs_dic[k].set_ylim([float(v1), float(v2)])
 
 def shave_y_tick_labels(axs_dic):
     """
     automatically removes the first and last tick labels to avoid overlap and
     if ther are more than 5 labels, print only one out of two
     """
+    return
     for ax in axs_dic.values():
         ymin,ymax = ax.get_ylim()
         # get y tick labels and locks
@@ -827,6 +833,9 @@ def draw_legend(fig, axs_dic, labels, whichax, loc):
         axis where to draw the legend. If not in the axes dictionary, draw
         figure legend
     loc: matplotlib legend locations
+    output
+    ------
+    matplotlib.legend.Legend instance
     """
     # get legend handles and set where to draw the legend
     try:
@@ -837,7 +846,7 @@ def draw_legend(fig, axs_dic, labels, whichax, loc):
         handles,_ = ax.get_legend_handles_labels()
         ax = fig
 
-    ax.legend(handles, labels, loc=loc)
+    return ax.legend(handles, labels, loc=loc)
 
 
 def main(argv):
@@ -902,7 +911,10 @@ def main(argv):
         print("Set up the plot area")
     set_mpl_defaults(args.font_size, args.legend_fsize, args.line_width,
             args.marker_size)
-    fig, daxs = make_figure(short_names, labels_dic, figsize=args.figsize)
+    if args.set_MNRAS:  # use MNRAS presets
+        mpm.MNRAS_fig()
+
+    fig, daxs = make_figure(short_names, args.x_label, labels_dic, figsize=args.figsize)
 
     if args.verbose:
         print("Plot mean and stddev")
@@ -923,9 +935,9 @@ def main(argv):
     if args.legend is not None:
         if args.legend_plot is None:
             args.legend_plot = short_names[0]
-        draw_legend(fig, daxs, args.legend, args.legend_plot, args.loc)
+        legend_ = draw_legend(fig, daxs, args.legend, args.legend_plot, args.loc)
 
-    plt.tight_layout(h_pad=0, rect=args.bounds)
+    plt.tight_layout(h_pad=0, pad=0.2, rect=args.bounds)
     if args.ofile is None:
         plt.show()
     else:

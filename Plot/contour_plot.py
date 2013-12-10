@@ -60,6 +60,9 @@ def parse(argv):
     # plot options
     pp = p.add_argument_group(description="Plot related options")
 
+    pp.add_argument("--set-MNRAS", action='store_true', 
+            help='Use MNRAS presets for plotting')
+
     pp.add_argument("--figure-size", nargs=2, default=[10.,10.], type=float,
             action=apc.Cm2Inch, help="Figure size in cm")
 
@@ -72,7 +75,7 @@ def parse(argv):
             transparency.""")
 
     pp.add_argument("-w", "--line-width", action="store", type=float,
-            default=2, help="Line width for the contour plots")
+            help="Line width for the contour plots")
 
     pp.add_argument("--no-fill", action="store_false", help="""Don't draw
             filled contours""")
@@ -102,15 +105,13 @@ def parse(argv):
     #text and font options
     pfo = p.add_argument_group(description="Text and font options")
 
-    pfo.add_argument("--font-size", type=float, default=20, 
-            help="Axis font size")
+    pfo.add_argument("--font-size", type=float, help="Axis font size")
 
     pfo.add_argument("-t", "--text", nargs='+', action=apc.multiple_of(3,
             reshape=True), help="""Writes the text '%(dest)s[2]' at coordinates
             x='%(dest)s[0]', y='%(dest)s[1]'. Multiple text can be given providing,
             giving triplet of x,y, and text""")
-    pfo.add_argument("--text-fsize", type=float, help="""Texts font size.
-            Defaults to axis font size""")
+    pfo.add_argument("--text-fsize", type=float, help="""Texts font size.""")
     pfo.add_argument("--text-bkgr", help="Text background")
 
     pfo.add_argument("--xlabel", help="Custom x label")
@@ -127,7 +128,7 @@ def parse(argv):
             help='Legend location (see matplotlib legend help)')
 
     pl.add_argument("--legend-fsize", type=float, help="""Legend tags font
-            size. Defaults to axis font size""")
+            size.""")
 
     pl.add_argument("--color-text", action="store_true", help="""Legend text
             with the same color as the lines in the contour plots.""")
@@ -140,6 +141,36 @@ def parse(argv):
 
     return p.parse_args(args=argv)  
 #end def parse(argv)
+
+def set_rcParams(**kwargs):
+    """
+    Set the parameters in matplotlib rcParams. 
+    If no option is given, the parameters fall back to the default in 'matplotlibrc' file
+    Parameters
+    ----------
+    set_MNRAS: bool
+        set the default parameters from 'pythonlib/myplotmodule.py'.
+        This option is called first and others change the parameters
+    """
+    from matplotlib import rcParams
+
+    if kwargs.get("set_MNRAS", False):
+        mpm.MNRAS_fig()
+
+    rcParams['figure.figsize'] = kwargs['figure_size']
+
+    if kwargs.get("line_width") is not None:
+        rcParams['lines.linewidth'] = kwargs["line_width"]
+
+    if kwargs.get("font_size") is not None:
+        rcParams['axes.labelsize'] = kwargs["font_size"]
+        rcParams['axes.titlesize'] = kwargs["font_size"]
+
+    if kwargs.get("text_fsize") is not None:
+        rcParams['font.size'] = kwargs["text_fsize"]
+
+    if kwargs.get('legend_fsize') is not None:
+        rcParams['legend.fontsize'] = kwargs["legend_fsize"]
 
 #############################################
 ###                 Main                  ###
@@ -163,8 +194,8 @@ if __name__ == "__main__":   # if is the main
         
     #line style twicks uncomment for final files
     t0,t1 = mpm.linestyles[:2]   #invert the first and second elements of the line style
-    mpm.linestyles[:2] = t1,t0
-    #t0,t1 = mpm.linestyles[2:4]   #invert the third and fourth elements of the line style
+    t2,t3 = mpm.linestyles[2:4]   #invert the third and fourth elements of the line style
+    mpm.linestyles[:2] = t2,t3
     mpm.linestyles[2:4] = t1,t0
 
     # get parameter names
@@ -200,9 +231,12 @@ if __name__ == "__main__":   # if is the main
         #create authomatic colors
         colors = cm.cols_shades(len(args.ifroot), n_levels, alpha=n_shades)
         #colors = cm.custom_colors()
+
+    # Set the rc parameters for the plot
+    set_rcParams(**vars(args))
     
-    fig=plt.figure(1, figsize=args.figure_size)  #open the figure
-    subpl = fig.add_subplot(1,1,1)  #create a subplots
+    # create the figure
+    fig, subpl = plt.subplots()
 
     #do the contour plots
     lines = []
@@ -218,13 +252,13 @@ if __name__ == "__main__":   # if is the main
             lines.append(subpl.contour(x, y, h,
                 colors=(tuple(colors[i,-1,:3]),), levels=amplitude[i],
                 linestyles=mpm.linestyles[i%mpm.numls],
-                linewidths=args.line_width, origin='lower').collections[0])
+                origin='lower').collections[0])
         else:
             subpl.contourf(x, y, h, origin='lower')
             #plot the contours and get the outermost line
             lines.append(subpl.contour(x, y, h,
                 linestyles=mpm.linestyles[i%mpm.numls],
-                linewidths=args.line_width, origin='lower').collections[0])
+                origin='lower').collections[0])
 
     #plot all the extra lines
     if(args.horizontal != None):
@@ -240,10 +274,8 @@ if __name__ == "__main__":   # if is the main
 
     # write the text
     if(args.text != None):
-        if(args.text_fsize == None):
-            args.text_fsize = args.font_size
         for (x,y,t) in args.text:
-            txt = subpl.text(float(x),float(y),t, fontsize=args.text_fsize)
+            txt = subpl.text(float(x),float(y),t)
         if(args.text_bkgr != None):
             txt.set_backgroundcolor(args.text_bkgr)
 
@@ -258,12 +290,8 @@ if __name__ == "__main__":   # if is the main
         args.xlabel = "$"+paramnames[0][0][2]+"$"
     if(args.ylabel == None):
         args.ylabel = "$"+paramnames[0][1][2]+"$"
-    subpl.set_xlabel(args.xlabel, fontsize=args.font_size)
-    subpl.set_ylabel(args.ylabel, fontsize=args.font_size)
-    for label in subpl.get_xticklabels():
-        label.set_fontsize(args.font_size)
-    for label in subpl.get_yticklabels():
-        label.set_fontsize(args.font_size)
+    subpl.set_xlabel(args.xlabel)
+    subpl.set_ylabel(args.ylabel)
 
     #legend
     if(args.legend != None):  #write the legend if required
@@ -279,10 +307,6 @@ if __name__ == "__main__":   # if is the main
             l.get_frame().set_edgecolor(args.legend_frame)
             l.get_frame().set_facecolor(args.legend_frame)
 
-        txt = l.get_texts()
-        if(args.legend_fsize == None):
-            args.legend_fsize = args.font_size
-        plt.setp(txt, fontsize=args.legend_fsize)
         if args.color_text:
             for i,line in enumerate(lines):
                 txt[i].set_color(list(line.get_color()[0]))
