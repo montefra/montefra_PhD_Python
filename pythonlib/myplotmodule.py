@@ -31,6 +31,7 @@ def MNRAS_fig():
     rcParams['font.size'] = 10
     rcParams['legend.fontsize'] = 8
     rcParams['lines.linewidth'] = 1.5
+    rcParams['lines.markersize'] = 5
 
 def options(option):
   """this function set some default parse option that can be used by lot of programs
