@@ -45,9 +45,9 @@ try:
     #raise ImportError # uncomment this to force pure-python code
     import mangle_utils
 except ImportError as e:
-    print "Error, could not import mangle_utils:",e
-    print "Mangle routines will still function, but be slower."
-    print "Check that you have built mangle_utils.so (see README.txt)."
+    print("Error, could not import mangle_utils:",e)
+    print("Mangle routines will still function, but be slower.")
+    print("Check that you have built mangle_utils.so (see README.txt).")
     useUtils = False
 else:
     useUtils = True
