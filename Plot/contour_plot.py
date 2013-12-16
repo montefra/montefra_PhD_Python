@@ -63,7 +63,7 @@ def parse(argv):
     pp.add_argument("--set-MNRAS", action='store_true', 
             help='Use MNRAS presets for plotting')
 
-    pp.add_argument("--figure-size", nargs=2, default=[10.,10.], type=float,
+    pp.add_argument("--figure-figsize", nargs=2, default=[10.,10.], type=float,
             action=apc.Cm2Inch, help="Figure size in cm")
 
     pp.add_argument('-x', '--xlim', type=float, nargs=2, help="""Plot x
@@ -74,7 +74,7 @@ def parse(argv):
     pp.add_argument("-a", "--alpha", action="store_true", help="""Turn on
             transparency.""")
 
-    pp.add_argument("-w", "--line-width", action="store", type=float,
+    pp.add_argument("-w", "--lines-linewidth", action="store", type=float,
             help="Line width for the contour plots")
 
     pp.add_argument("--no-fill", action="store_false", help="""Don't draw
@@ -105,13 +105,13 @@ def parse(argv):
     #text and font options
     pfo = p.add_argument_group(description="Text and font options")
 
-    pfo.add_argument("--font-size", type=float, help="Axis font size")
+    pfo.add_argument("--axes-labelsize", type=float, help="Axis font size")
 
     pfo.add_argument("-t", "--text", nargs='+', action=apc.multiple_of(3,
             reshape=True), help="""Writes the text '%(dest)s[2]' at coordinates
             x='%(dest)s[0]', y='%(dest)s[1]'. Multiple text can be given providing,
             giving triplet of x,y, and text""")
-    pfo.add_argument("--text-fsize", type=float, help="""Texts font size.""")
+    pfo.add_argument("--font-size", type=float, help="""Texts font size.""")
     pfo.add_argument("--text-bkgr", help="Text background")
 
     pfo.add_argument("--xlabel", help="Custom x label")
@@ -127,7 +127,7 @@ def parse(argv):
     pl.add_argument("--loc", type=apc.int_or_str, default=0,
             help='Legend location (see matplotlib legend help)')
 
-    pl.add_argument("--legend-fsize", type=float, help="""Legend tags font
+    pl.add_argument("--legend-fontsize", type=float, help="""Legend tags font
             size.""")
 
     pl.add_argument("--color-text", action="store_true", help="""Legend text
@@ -142,35 +142,6 @@ def parse(argv):
     return p.parse_args(args=argv)  
 #end def parse(argv)
 
-def set_rcParams(**kwargs):
-    """
-    Set the parameters in matplotlib rcParams. 
-    If no option is given, the parameters fall back to the default in 'matplotlibrc' file
-    Parameters
-    ----------
-    set_MNRAS: bool
-        set the default parameters from 'pythonlib/myplotmodule.py'.
-        This option is called first and others change the parameters
-    """
-    from matplotlib import rcParams
-
-    if kwargs.get("set_MNRAS", False):
-        mpm.MNRAS_fig()
-
-    rcParams['figure.figsize'] = kwargs['figure_size']
-
-    if kwargs.get("line_width") is not None:
-        rcParams['lines.linewidth'] = kwargs["line_width"]
-
-    if kwargs.get("font_size") is not None:
-        rcParams['axes.labelsize'] = kwargs["font_size"]
-        rcParams['axes.titlesize'] = kwargs["font_size"]
-
-    if kwargs.get("text_fsize") is not None:
-        rcParams['font.size'] = kwargs["text_fsize"]
-
-    if kwargs.get('legend_fsize') is not None:
-        rcParams['legend.fontsize'] = kwargs["legend_fsize"]
 
 #############################################
 ###                 Main                  ###
@@ -233,7 +204,7 @@ if __name__ == "__main__":   # if is the main
         #colors = cm.custom_colors()
 
     # Set the rc parameters for the plot
-    set_rcParams(**vars(args))
+    mpm.set_rcParams(**vars(args))
     
     # create the figure
     fig, subpl = plt.subplots()

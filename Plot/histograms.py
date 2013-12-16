@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 import contour_func as cf   #functions used in contour plot
@@ -6,219 +6,344 @@ import itertools as it  #optimized iteration tools
 import matplotlib.pyplot as plt  #plotting stuff
 import myplotmodule as mpm   # my model used to plot
 import numpy as np  #numpy
-import optparse as op  #import optsparse: allows nice command line option handling
 
-def options(p):
-  """
-  This function accept the option parser istance and fill it with options.
+class MyException(Exception):
+    pass
+class MyWarning(UserWarning):
+    pass
 
-  The version must be set when creating the optparse istance
+def parse(argv):
+    """
+    This function accept a list of strings, create and fill a parser instance 
+    and return a populated namespace
 
-  Parameters
-  ----------
-  p: option parser istance
+    Parameters
+    ----------
+    argv: list of strings
+        list to be parsed
 
-  output: tuple with the options and the arguments
-  ---------
-  """
+    output: namespace
+    ---------
+    """
 
-  p.set_usage("""%prog [options] file_root1 [file_root2 ... file_rootn] [legtag1 [legtag2 .. [legtagn]]]
-  This program reads n MCMC chains and plot 1D histograms for given set of the parameter
-  WARNING: the file name and structrure is based on COSMOMC
-  Each line of the input chain must be 'counter, likelihood, parameters'
-  The arguments of the program are intended as the root of the different chains to plot. 
-  At least one must be provided
-  If the legend option is selected, a number of strings equal to the number of file_root are espected 
-  after the file_roots and will be used as legend tags.
+    import argparse as ap 
+    import argparse_custom as apc
 
-  WARNING: the number of colums in the input chains and in the various 'file_rooti.params'
-  must be consistent""")  # program explanation
+    description = """Draw 1D histograms for parameters from a list of MCMC chains.
+    File name and structure is base on CosmoMC.
+    ifroot+ext-chain must have the following structure:
+    'counter, likelihood, parameters'.
+    ifroot+ext-paramn: are the paramname files
+    """
 
-  p.add_option("-v", "--verbose", action="store_true", dest="verbose", help="Produces more output.")  # verbose option
-  p.add_option("-o", "--output-file", action="store", dest="outfile", type="string", help="Output file name [default: %default]")   #output file name
+    p = ap.ArgumentParser(description=description,
+            formatter_class=ap.ArgumentDefaultsHelpFormatter)
 
-  #add new options
-  p.add_option("-c", "--columns", action="append", dest="cols", type="int", help="Column numbers used for the plot. Call this options more than one to read more columns. The input chain has the following structrure: chain[:,0]=counter, chain[:,1]=likelihood, chain[:,2:]=parameters.")   #x range values from the user
+    p.add_argument("ifroot", action="store", nargs='+', 
+            help="Input file name(s)")
 
-  p.add_option("-b", "--num_bins", action="store", dest="n_bins", type="int", default="40", help="Number of bins for the histogram. [default: %default]")    #number of bins to create the 2D histogram for the contourplots
+    p = apc.version_verbose(p, '2')
 
-  p.add_option("--chain-ext", action="store", dest="cext", default=".0.5_total.txt", help="'file_rooti+cext': file containing the chains. [Default: %default]")
-  p.add_option("--parname-ext", action="store", dest="pext", default=".paramnames", help="'file_rooti+cext': file containing the name of the parameters. [Default: %default]")
+    # columns 
+    p.add_argument("-c", "--columns", action="store", nargs='+', 
+            default=['omega_m', 'omega_l', 'H0']
+            help="""Name of the columns as they appear in the first column of
+            each parameter file name.""")
 
-  p.add_option("-w", "--line-width", action="store", dest="lw", type=float, default=2, help="Set the line width for the contour plots. [Default: %default]")
-  p.add_option("--font-size", action="store", type=float, dest="sfont", default=20, help="Font size of the axis. [Default: %default]")
-  p.add_option("--legend-fsize", action="store", type=float, dest="lsfont", help="Font size of the legend tags. If not given set as the axis font size")
-  p.add_option("--ticklabel-fsize", action="store", type=float, dest="tsfont", help="Font size of the tick labels. If not given set as the axis font size")
 
-  p.add_option("--legend", action="store", dest="legend", type=int, nargs=2, help="Turn on the legend on the legend[0] plot, using as tags the second half of the command line arguments. legend[1] in the range [0,10] gives the position of the legend. 0='best' (http://matplotlib.sourceforge.net/api/pyplot_api.html#matplotlib.pyplot.legend).")
-  p.add_option("--color-text", action="store_true", dest="textcol", default=False, help="If selected, writes the text of the legend with the same color of the lines of the contour plots.")
+    # file related options
+    pf = p.add_argument_group(description='Input-output file options')
 
-  p.add_option("--figure-size", action="store", type=float, nargs=2, dest="fsize", default=[10.,10.], help="x and y size of the plot in cm. [Default: %default]")
-  p.add_option("--bounds", action="store", dest="bounds", type=float, nargs=6, default=[0.20, 0.20, 0.98, 0.98, 0, 0.2], help="[left, bottom, right, top, horizonal space, vertical space] in units of the figure canvas. [Default: %default]")
-  p.add_option("-r", "--rows-number", action="store", dest="nrows", type=int, default=1, help="Number of rows to be plot. The number of columns is computed according to the number of columns to read. [Default: %default]")
+    pf.add_argument("--ext-chain", action="store", default=".0.5_total.dat",
+            help="""Extension to create the chain file names""")
+    pf.add_argument("--ext-parmn", action="store", default=".paramnames",
+            help="""Extension of the parameter file names""")
 
-  p.add_option("--vertical", action="append", type=float, nargs=2, dest="vline", help="Draw a vertical line at x='vline[1]' in plot # vline[0]")
+    pf.add_argument('-o', '--output', help="""Save the contour plot into file
+            '%(dest)s' instead of plotting it""")
 
-  return p.parse_args()
+    # plot options
+    pp = p.add_argument_group(description="Plot related options")
 
-def check_optargs(opt, args):
-  """
-  Check if the input options and parameters are ok.
-  
-  Parameters
-  ----------
-  options: dictionary
-    dictionary of options returned by optparse
-  args: list
-    list of arguments returned by optparse
+    pp.add_argument("--set-MNRAS", action='store_true', 
+            help='Use MNRAS presets for plotting')
 
-  output:
-    opt: dictionary of the options
-    file_roots: list of file roots
-    tags: list of tags
-    paramnames: list of parameter names
-  """
+    pp.add_argument("--figure-figsize", nargs=2, default=[10.,10.], type=float,
+            action=apc.Cm2Inch, help="Figure size in cm")
 
-  #check and split the args
-  if(len(args)<1):
-    raise SystemExit("At least one argument required")
-  if(opt.legend != None):
-    if(len(args)%2 != 0):
-      raise SystemExit("The legend is required: the second half of the argument list should contain the legend tags, but I have an odd number of args.")
-    else:
-      file_roots = args[:len(args)/2] #save the file roots
-      tags = args[len(args)/2:]  #save the legend tags
-  else:
-    file_roots = args[:] #save the file roots
-    tags = []  #save the legend tags
+    pp.add_argument("-c", "--n-cols", type=int, default=3, 
+            help='Number of subplot columns')
 
-  #read parameter file names
-  paramnames = cf.get_paramnames(file_roots, ext=opt.pext, verbose=opt.verbose)
-  #if no column number is given, get it from std in
-  if(opt.cols == None):
-    for i,pn in enumerate(paramnames):
-      print "%i) %s" %(i+2, pn.strip().split("\t")[0])
-    temp = raw_input("Please give me the number corresponding to the parameters you want to plot separated by one or more space:\n")
-    opt.cols = [int(i) for i in temp.split()] #save the chosen columns
-  for i in opt.cols:
-    if(i<2 or i > len(paramnames)+1):
-      raise IndexError("Index out of the range [2,%d]" %(len(paramnames)+1))
-  opt.cols.insert(0,0)
-  paramnames = [paramnames[i] for i in np.array(opt.cols[1:])-2] #rearrange the parameter names and discard the unused ones
+    pp.add_argument("-b", "--bounds", action="store", type=float, nargs=4,
+            default=[0, 0, 1, 1], help="""(left, bottom, right, top) in the
+            normalized figure coordinate passed to 'plt.tight_layout'""")
 
-  opt.ncols = int(np.ceil(len(opt.cols[1:])/float(opt.nrows)))   #compute the number of columns
+    pp.add_argument("--x-range", nargs='+', action=apc.multiple_of(3, reshape=True), 
+            help="""Set x axis range in subplot '%(dest)s[0]' to
+            '%(dest)s[1:3]'.  The subplot is identified with the short name from
+            the parameter file.""")
 
-  if(opt.nrows == 1):   #adjust the boundaried 
-    opt.bounds[5] = 0.
-  if(opt.ncols == 1):
-    opt.bounds[4] = 0.
+    pp.add_argument("--x-label", nargs='+', action=apc.multiple_of(2, reshape=True), 
+            help="""Set x axis label in subplot '%(dest)s[0]' to '%(dest)s[1]'.
+            The sublot is identified with the short name from the parameter
+            file. Multiple labels can be drawn providing couple of
+            subplot-label.""")
+    pp.add_argument("--y-label", default="$P/P_{max}$", help='x axis label')
 
-  if(opt.lsfont == None):    #set legend font size if not given
-    opt.lsfont = opt.sfont
-  if(opt.lsfont == None):    #set tick labes font size if not given
-    opt.tsfont = opt.sfont*0.7
+    pp.add_argument("-w", "--lines-linewidth", action="store", type=float,
+            help="Line width for the contour plots")
 
-  opt.fsize = tuple(np.array(opt.fsize)/mpm.inc2cm)   #convert the figure size in inches
+    pp.add_argument("--vertical", nargs='+', action=apc.multiple_of(2,
+        reshape=True), help="""Plot a vertical line in subplot '%(dest)s[0]'
+        at x='%(dest)s[1]'. The subplot is identified with the short name from
+        the parameter file. Multiple lines can be drawn providing couple of
+        subplot-line.""") 
 
-  vertical = [[None, 0.] for i in opt.cols[1:]] #initialise the list of lists for the vertical lines
-  if(opt.vline != None):   #if a tuple of values to draw the vertical line is given order it
-    for v in opt.vline:
-      vertical[int(v[0])-1] = list(v)
-  opt.vline = vertical   #replace the option with the full list
+    # 1D histograms options
+    p1D = p.add_argument_group(description="""Histogram creation options""")
 
-  return opt, file_roots, tags, paramnames
+    p1D.add_argument("-b", "--num-bins", action="store", type=int, default="80", 
+            help="Number of bins for the 2D histogram") 
 
-def legend(ax, lines, tags, pos, **kargs):
-  """Place the legend in position 'pos' in the 'ax' reference frame
+    #text and font options
+    pfo = p.add_argument_group(description="Text and font options")
 
-  Parameters
-  ----------
-  ax: class 'matplotlib.axes.Axes' or class 'matplotlib.axes.AxesSubplot'
-    axes or subplot where to draw the legend
-  lines: list
-    lines of the legend
-  tags: list
-    tags for the legend
-  pos: integer [0,10] or corresponding string
-    position of the legend in the plot
-  **kargs: dictionary (optional)
-    dictionary of options
-  """
-  l = ax.legend(lines, tags, loc=pos, numpoints=1, borderpad=0.3, columnspacing=0.8, handlelength=1.4, borderaxespad=0.1, labelspacing=0.2)
-  l.draw_frame(False)   #delete the frame
-  txt = l.get_texts()
-  if(kargs.has_key("lsfont")==True and kargs["lsfont"]!=None):
-    plt.setp(txt, fontsize=opt.lsfont)
-  else:
-    print "Keep default font size of the legend"
-  if(kargs.has_key("textcol")==True and kargs["textcol"] == True):
-    for i,l in enumerate(lines):
-      txt[i].set_color(list(l)[0].get_color())
+    pfo.add_argument("--axes-labelsize", type=float, help="Axis font size")
 
-  pass
+    pfo.add_argument("-t", "--text", nargs='+', action=apc.multiple_of(3,
+            reshape=True), help="""Writes the text '%(dest)s[2]' at coordinates
+            x='%(dest)s[0]', y='%(dest)s[1]'. Multiple text can be given providing,
+            giving triplet of x,y, and text""")
+    pfo.add_argument("--font-size", type=float, help="""Texts font size.""")
+    pfo.add_argument("--text-bkgr", help="Text background")
+
+
+    #legend options 
+    pl = p.add_argument_group(description='Legend options')
+
+    pl.add_argument("--legend", nargs='+', help="""Legend tags. If given, the
+        number of elements must be the same as the number of input root and in
+        the same order""")
+
+    pl.add_argument("--legend-plot", action="store", 
+            help="""Put the legend in plot '%(dest)s'. The subplot is identified
+            with the short name from the parameter file. If '%(dest)s' is not
+            in the list of parameters, the legend is drawn in the first empty
+            subplot, if any, otherwise the figure legend is drawn. If not
+            given, the legend is drawn in a plot (depends on the dictionary
+            hashing)""")
+    pl.add_argument("--loc", type=apc.int_or_str, default=0,
+            help='Legend location (see matplotlib legend help)')
+
+    pl.add_argument("--legend-fontsize", type=float, help="""Legend tags font
+            size.""")
+
+    pl.add_argument("--color-text", action="store_true", help="""Legend text
+            with the same color as the lines in the contour plots.""")
+
+    pl.add_argument("--invert-legend", action="store_true", 
+            help="Invert the legend entries")
+
+    pl.add_argument("--legend-frame", help="""Set the legend frame to the given
+            color. Default no frame""")
+
+    return p.parse_args(args=argv)  
+
+def get_hists(froots, ext_parmn, ext_chain, columns, **kwargs):
+    """
+    find the give columns in the parameter file names, read them from the chain
+    files and create the 1D histogramsz
+    Parameters
+    ----------
+    froots: list
+        file name roots
+    ext_parmn: string
+        extension of the parameter file names
+    ext_chain: string
+        extension of the chain file names
+    columns: list
+        short name of the columns to read
+    kwargs: dictionary
+        +verbose: bool
+        +x_lim: list of lists
+            list of x limits. Each element is a list containing the short parameter
+            name and the max and minimum limit
+        +num_bins: int 
+            number of bins used to compute the histogram
+
+    Output
+    ------
+    hists: dictionary
+        key: the parameter short name; value: a list of numpy arrays with the
+        normalised histograms in the same order as the froots
+    bin_edges: dictionary
+        key: the parameter short name; value: bin edges as returned by
+        `numpy.histogram`
+    x_labels: dictionary
+        key: the parameter short name; value: x labels from the parameter files.
+    """
+
+    # read the paramname files
+    paramindex = cf.get_paramnames(froots, params=columns, ext=ext_parmn,
+        verbose=kwargs.get('verbose', False))
+
+    # dictionary containing the x limits. The short column name is the key.
+    ranges = {i:None for i in columns}
+    bin_edges = {i:None for i in columns}
+    nbins = kwargs.get('num_bins', 10)
+    for k, v1, v2 in kwargs.get('x_lim', []):
+        if k not in ranges:
+            warn("Key '{}' is not in column list".format(k), MyWarning)
+        else:
+            ranges[k] = [float(v1), float(v2)]
+            bin_edges[k] = np.linspace(*ranges[k], num=nbins+1)
+    # dictionary containing the x labels
+    x_labels = {pi[1]: pi[2] for pi in paramindex[0]}
+    # dictionary containing the histograms. The short column name is the key.
+    hists = {i:[] for i in columns}
+
+    # read the columns.
+    if kwargs.get('verbose', False):
+    for fr, pindex in froots, paramindex:
+        # get the column numbers
+        usecols = [i[0]+2 for i in pindex]
+        chains = np.loadtxt(fr+ext_chain, usecols=[0]+usecols)
+
+        for i, pi in pindex:
+            # compute the 1D histogram
+            hist, bin_edge = np.histogram(chains[:,i+1], bins=nbins,
+                    range=ranges[pi[1]], weights=chains[:,0])
+            # normalise to the maximum and save in hists
+            hists[pi[1]].append(hist/float(hist.max()))
+            if ranges[pi[1]] is None:
+                ranges[pi[1]] = bin_edge[[0,-1]]
+                bin_edges[pi[1]] = bin_edge
+ 
+    return hists, bin_edges, x_labels 
+
+def make_figure(xlabels, n_cols):
+    """
+    Create the figure. Save the subplots into a
+    dictionary and make the x axis labels
+    Parameters
+    ----------
+    xlabels: dictionary
+        list of keys of the following dictionary: short names from the
+        parameter files
+    n_cols: int
+        number of columns of subplots, the number or rows is computed
+        internally
+    output
+    ------
+    fig: matplotlib figure
+    axs_dic: dic
+        dictionary of subplot objects with keys from key_list
+    """
+    key_list = list(xlabels.keys())
+    # compute the number of rows needed
+    n_rows = len(key_list)//n_cols + 1
+    if len(key_list)%n_cols < n_cols:
+        warn("There are too many empty subplots", MyWarning)
+
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, sharey=True)
+    axs = axs.flatten()
+
+    # move the axs to a dictionary with the elements of key_list as key.
+    # Set the x labels and remove the y labels except in the last plot
+    axs_dic={}
+    for i, k, ax in zip(it.count(), key_list, axs):
+        if ax.is_first_col():
+            ax.set_ylabel('$\mathcal{L}/\mathcal{L}_{max}$')
+        ax.set_xlabel(xlabels[k])
+        ax.set_
+        axs_dic[k] = ax
+
+    # save empty subplots
+    axs_dic['empty'] = axs[i:] 
+
+    return fig, axs_dic
+
+def plot_hists(axs_dic, hists, bin_edges):
+    """
+    Plot the histograms into the axes
+    Parameters
+    ----------
+    axs_dic: dictionary
+        key: parameter short name; value: axes/subplot object
+    hists: dictionary
+        key: the parameter short name; value: a list of numpy arrays with the
+        normalised histograms in the same order as the froots
+    bin_edges: dictionary
+        key: the parameter short name; value: bin edges as returned by
+        `numpy.histogram`
+    """
+
+    for k, ax in axs_dic.items():
+        be = bin_edges[k]
+        be = np.r_[be[0], np.repeat(be[1:-1], 2), be[-1]]
+        ls = it.cycle(mpm.linestyles)
+        col = it.cycle(mpm.colors)
+        for h in hists[k]:
+            ax.plot(be, np.repeat(h, 2), ls=ls.next(), c=col.next())
 
 #############################################
 ###                 Main                  ###
 #############################################
 
+def main(argv):
+    args = parse(argv)
+
+    # command line parameter checks
+    if args.legend is not None and len(args.legend)!=len(args.froot):
+        raise MyException("""The number of legend tags must be the same as the
+                             number of file roots""")
+
+    if args.verbose:
+        print("Reading the input files")
+    # read the input files and create the histograms
+    hists, bin_edges, x_labels = get_hists(args.ifroot, args.ext_parmn, args.ext_chain,
+            args.columns, **vars(args))
+
+    if args.verbose:
+        print("Make the figure and axes")
+    mpm.subsitute_labels(args.x_label, x_labels)
+    # create the figure and axes
+    fig, daxs = make_figure(x_labels, args.n_cols)
+
+    # set the x and y ranges
+    xlimits = [[k, v1, v2] for k, (v1,v2) for bin_edges.items()]
+    ylimits = [[k, 0, 1.05] for k, _ for bin_edges.items()]
+    mpm.change_xylim(daxs, x_lim=xlimits, y_lim=ylimits)
+
+    # plot the histograms
+    if args.verbose:
+        print("Plotting the histograms")
+    plot_hists(daxs, hists, bin_edges)
+
+    # do the legend
+    if args.legend is not None:
+        if args.verbose:
+            print("Drawing the legend")
+        if args.legend_plot is None:
+            args.legend_plot = list(daxs.keys())[0]
+        legend_ = mpm.draw_legend(fig, daxs, args.legend, args.legend_plot, args.loc)
+
+    # do vertical lines
+    mpm.plot_horiz_vert(daxs, vert=args.vertical)
+
+    # clear empty axes 
+    for ax in daxs.get('empty', d=[]):
+        ax.set_axis_off()
+
+    # show or save the figure
+    plt.tight_layout(h_pad=0, pad=0.2, rect=args.bounds)
+    if args.ofile is None:
+        plt.show()
+    else:
+        fig.savefig(args.ofile)
+
 if __name__ == "__main__":   # if is the main
 
-  (opt, args) = options(op.OptionParser(version="%prog version 0.1"))   #create the object optparse
-
-  opt, froots, tags, paramnames = check_optargs(opt, args)   #check the input
-  
-  c_s, r_s = (opt.bounds[2]-opt.bounds[0])/float(opt.ncols), (opt.bounds[3]-opt.bounds[1])/float(opt.nrows)  #dimentions of the columns dnd rows
-  lines=[]  #initialise list of lines for the legend, if required
-
-  fig=plt.figure(1, figsize=opt.fsize)  #open the figure
-  fig.subplots_adjust(left=opt.bounds[0], bottom=opt.bounds[1], right=opt.bounds[2], top=opt.bounds[3], wspace=opt.bounds[4], hspace=opt.bounds[5])
-
-  for i,f in enumerate(froots):  #goes to the files
-    chain = list(np.loadtxt(f+opt.cext, usecols=opt.cols).T)   #read the file containing the chain
-    weights = chain[0]    #separate the weights from the values of the chains
-    chain = chain[1:]
-    for j,c,p,v in it.izip(it.count(),chain,paramnames,opt.vline):   #loop through the parameters to plot
-      h, xe = np.histogram(c, bins=opt.n_bins, weights=weights)   #compute the histogram
-      h /= np.amax(h)   #rescale the istogram in order to have peak =1
-      xe = (xe[1:]+xe[:-1])/2.   #compute the mean of each bin
-
-      #x_st, y_st = j%opt.ncols, opt.nrows-1-np.floor(j/opt.ncols)   #sublplot index
-      #spl = fig.add_axes([opt.bounds[0]+c_s*x_st+opt.bounds[4], opt.bounds[1]+r_s*y_st+opt.bounds[5], c_s-opt.bounds[4], r_s-opt.bounds[5]])   #subplot
-      spl = fig.add_subplot(opt.nrows, opt.ncols, j+1)
-
-      l = spl.plot(xe, h, ls=mpm.linestyles[i%mpm.numls], c=mpm.colors[i%mpm.numcol], lw=opt.lw)
-      if(j==0):  #save the line from the first parameters from each input file
-        lines.append(l)
-      if(i==0):  #for the first chain, write the x and y labels
-	spl.set_xlabel("$"+p.strip().split("\t")[1]+"$", fontsize=opt.sfont)  #x axis names
-	if(j%opt.ncols == 0):
-	  spl.set_ylabel(r"$\mathcal{L}/\mathcal{L}_{\mathrm{max}}$", fontsize=opt.sfont)  #axis names
-	else:
-	  spl.set_yticklabels([])
-	yr= spl.get_ylim()  #get y limits
-	spl.set_ylim(yr[0],yr[1]*1.05)  #set ylimits
-	#do not show the outmost x tick labes
-	xmin,xmax = spl.get_xlim()
-	xtl = spl.get_xmajorticklabels()
-	tl = spl.xaxis.get_majorticklocs()
-	xtl[(tl<xmin).sum()].set_visible(False)
-	xtl[-(tl>xmax).sum()-1].set_visible(False)
-	for xt in xtl:
-	  xt.set_fontsize(opt.tsfont)
-	for yt in spl.get_ymajorticklabels():
-	  yt.set_fontsize(opt.tsfont)
-	if(v[0] != None):
-	  spl.plot([v[1],v[1]], spl.get_ylim(), "k--")
-
-  if(opt.legend != None):  #write the legend if required
-    #x_st, y_st = opt.legeng[0]%opt.ncols, opt.nrows-1-np.floor(opt.legeng[0]/opt.ncols)   #sublplot index
-    #legend(fig.add_axes([opt.bounds[0]+c_s*x_st+opt.bounds[4], opt.bounds[1]+r_s*y_st+opt.bounds[5], c_s-opt.bounds[4], r_s-opt.bounds[5]]), lines, tags, opt.legend[1], opt)   #draw the legend
-    legend(fig.add_subplot(opt.nrows, opt.ncols, opt.legend[0]), lines, tags, opt.legend[1], **opt.__dict__)   #draw the legend
-
-
-  if(opt.outfile == None):
-    plt.show()
-  else:
-    plt.savefig(opt.outfile)
-
-  exit()
+    import sys
+    main(sys.argv[1:])
+    exit()

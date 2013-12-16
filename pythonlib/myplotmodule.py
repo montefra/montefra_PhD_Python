@@ -33,6 +33,41 @@ def MNRAS_fig():
     rcParams['lines.linewidth'] = 1.5
     rcParams['lines.markersize'] = 5
 
+def set_rcParams(**kwargs):
+    """
+    Set the parameters in matplotlib rcParams. 
+    If no option is given, the parameters fall back to the default in 'matplotlibrc' file
+    ----------
+    set_MNRAS: bool
+        set the default parameters from 'pythonlib/myplotmodule.py'.
+        This option is called first and others change the parameters
+
+    the other parameters have the same name as options in `matplotlib.rcParams`
+    with dots substituted by underscores
+    """
+    from matplotlib import rcParams
+
+    if kwargs.get("set_MNRAS", False):
+        mpm.MNRAS_fig()
+
+    # Figure parameters
+    if kwargs.get('figure_figsize') is not None:
+        rcParams['figure.figsize'] = kwargs['figure_figsize']
+
+    # lines properties
+    if kwargs.get("lines_linewidth") is not None:
+        rcParams['lines.linewidth'] = kwargs["lines_linewidth"]
+
+    # font properties
+    if kwargs.get("axes_labelsize") is not None:
+        rcParams['axes.labelsize'] = kwargs["axes_labelsize"]
+
+    if kwargs.get("font_size") is not None:
+        rcParams['font.size'] = kwargs["font_size"]
+
+    if kwargs.get('legend_fontsize') is not None:
+        rcParams['legend.fontsize'] = kwargs["legend_fontsize"]
+
 def options(option):
   """this function set some default parse option that can be used by lot of programs
   """
@@ -139,3 +174,120 @@ def legend(ax, lines, tags, pos, **kargs):
       txt[i].set_color(list(l)[0].get_color())
 
   pass
+
+#########################################
+# functions to operate on dictionaries
+# related with plotting on dictionaries 
+# of axes/subplots
+#########################################
+class MyWarning(UserWarning):
+    pass
+
+def subsitute_labels(new_labels, labels):
+    """
+    Substitute some of the labels with new ones
+    Parameters
+    ----------
+    new_labels: list of len(2) lists 
+        new_labels[i] = [key, new_label]
+    labels: dictionary
+        key: short name; value: latex string
+    output
+    ------
+    labels: same as input with new labels
+    """
+    for k, v in new_labels:
+        if k not in labels:
+            warn("Key '{}' is not in labels dictionary".format(k), MyWarning)
+        else:
+            labels[k] = v
+    return labels
+
+def change_xylim(axs_dic, x_lim=[], y_lim=[]):
+    """
+    Change the x and/or y limits of desired axes
+    Parameters
+    ----------
+    axs_dic: dictionary
+        key: short param names; value: plt.subplot
+    x_lim, y_lim: list of len(3) lists 
+        x/y_lim[i] = [key, lower limit, upper limit]
+    """
+    # x limits
+    for k, v1, v2 in x_lim:
+        if k not in axs_dic:
+            warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
+        else:
+            axs_dic[k].set_xlim([float(v1), float(v2)])
+    # y limits
+    for k, v1, v2 in y_lim:
+        if k not in axs_dic:
+            warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
+        else:
+            axs_dic[k].set_ylim([float(v1), float(v2)])
+
+def draw_legend(fig, axs_dic, labels, whichax, loc):
+    """
+    Draw the legend in figure 'fig' or one of the axes in 'axs_dic'.
+    If `whichax` is a key in `axs_dic`, the corresponding axes is used to draw
+    the legend; if not and a `empty` key exists, it must contain a list of
+    empty axes and the first is used for the legend and moved to
+    `axs_dic['legend']`; else a figure legend is drawn
+    Parameters
+    ----------
+    fig: matplotlib figure
+    axs_dic: dic
+        dictionary of subplot objects with keys from key_list
+    labels: list of string
+        legend labels
+    whichax: string
+        axis where to draw the legend. If not in the axes dictionary, draw
+        figure legend
+    loc: matplotlib legend locations
+    output
+    ------
+    matplotlib.legend.Legend instance
+    """
+    # Check if there are empty axes
+    # get legend handles and set where to draw the legend
+    if whichax in axs_dic:
+        ax = axs_dic[whichax]
+        handles,_ = ax.get_legend_handles_labels()
+    elif 'empty' in axs_dic:
+        ax = axs_dic['empty'][0]
+        axs_dic['empty'] = axs_dic['empty'][1:]
+        axs_dic['legend'] = ax
+        handles,_ = ax.get_legend_handles_labels()
+        # make x and y axis invisible.
+        ax.xaxis.set_visible(False)
+        ax.yaxis.set_visible(False)
+    except KeyError:
+        ax = list(axs_dic.values())[0]
+        handles,_ = ax.get_legend_handles_labels()
+        ax = fig
+
+    return ax.legend(handles, labels, loc=loc)
+
+def plot_horiz_vert(axs_dic, horiz=[], vert=[]):
+    """
+    Plot horizontal and/or vertical lines in desired axes
+    Parameters
+    ----------
+    axs_dic: dict
+        key: short param names; value: plt.subplot
+    horiz: list of len(2) lists 
+        horiz[i] = [key, y]
+    vert: list of len(2) lists 
+        vert[i] = [key, x]
+    """
+    for k, v in horiz:
+        if k not in axs_dic:
+            warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
+        else:
+            axs_dic[k].axhline(y=float(v), color='k', ls=':')
+    for k, v in vert:
+        if k not in axs_dic:
+            warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
+        else:
+            axs_dic[k].axvline(x=float(v), color='k', ls=':')
+

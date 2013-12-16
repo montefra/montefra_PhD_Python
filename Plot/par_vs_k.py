@@ -606,26 +606,6 @@ def rescale_y(rescale, mean, std, labels):
             labels[k] = "$"+strr+"$"+labels[k] 
     return mean, std, labels
 
-def subsitute_ylabels(new_labels, labels):
-    """
-    Substitute the ylabels in labels with the one from new_labels
-    Parameters
-    ----------
-    new_labels: list of len(2) lists 
-        new_labels[i] = [key, new_label]
-    labels: dict
-        dictionary with key: short name; value: latex string
-    output
-    ------
-    labels: same as input with new labels
-    """
-    for k, v in new_labels:
-        if k not in labels:
-            warn("Key '{}' is not in labels dictionary".format(k), MyWarning)
-        else:
-            labels[k] = v
-    return labels
-
 def set_mpl_defaults(fsize, leg_fsize, lw, ms):
     """
     Set the defaults rc parameters for matplotlib
@@ -763,44 +743,6 @@ def plot_variance(axs_dic, kmax, stddev):
     ax.set_xlim(kmax.min()*0.95, kmax.max()*1.04)
 #end def plot_variance(axs_dic, kmax, stddev, fill=None):
 
-def plot_horiz(axs_dic, horiz):
-    """
-    Plot horizontal lines in desired axes
-    Parameters
-    ----------
-    axs_dic: dict
-        key: short param names; value: plt.subplot
-    horiz: list of len(2) lists 
-        horiz[i] = [key, y]
-    output
-    ------
-    horiz: same as input with new horizontal lines
-    """
-    for k, v in horiz:
-        if k not in axs_dic:
-            warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
-        else:
-            axs_dic[k].axhline(y=float(v), color='k', ls=':')
-
-def change_ylim(axs_dic, y_lim):
-    """
-    Change the y limits of desired axes
-    Parameters
-    ----------
-    axs_dic: dict
-        key: short param names; value: plt.subplot
-    y_lim: list of len(2) lists 
-        y_lim[i] = [key, y limits]
-    output
-    ------
-    horiz: same as input with new horizontal lines
-    """
-    for k, v1, v2 in y_lim:
-        if k not in axs_dic:
-            warn("Key '{}' is not in axes dictionary".format(k), MyWarning)
-        else:
-            axs_dic[k].set_ylim([float(v1), float(v2)])
-
 def shave_y_tick_labels(axs_dic):
     """
     automatically removes the first and last tick labels to avoid overlap and
@@ -819,37 +761,9 @@ def shave_y_tick_labels(axs_dic):
             for iy in range(2,len(ytl)-1,2):
                 ytl[iy].set_visible(False)
 
-def draw_legend(fig, axs_dic, labels, whichax, loc):
-    """
-    Draw the legend in figure 'fig' or one of the axes in 'axs_dic'
-    Parameters
-    ----------
-    fig: matplotlib figure
-    axs_dic: dic
-        dictionary of subplot objects with keys from key_list
-    labels: list of string
-        legend labels
-    whichax: string
-        axis where to draw the legend. If not in the axes dictionary, draw
-        figure legend
-    loc: matplotlib legend locations
-    output
-    ------
-    matplotlib.legend.Legend instance
-    """
-    # get legend handles and set where to draw the legend
-    try:
-        ax = axs_dic[whichax]
-        handles,_ = ax.get_legend_handles_labels()
-    except KeyError:
-        ax = list(axs_dic.values())[0]
-        handles,_ = ax.get_legend_handles_labels()
-        ax = fig
-
-    return ax.legend(handles, labels, loc=loc)
-
-
 def main(argv):
+    """
+    """
     args = parse(argv)
 
     # command line parameter checks
@@ -905,7 +819,7 @@ def main(argv):
     if args.y_label is not None:
         if args.verbose:
             print("Substituting the y labels in the desired subplots")
-        labels_dic = subsitute_ylabels(args.y_label, labels_dic)
+        labels_dic = subsitute_labels(args.y_label, labels_dic)
 
     if args.verbose:
         print("Set up the plot area")
@@ -924,10 +838,10 @@ def main(argv):
         plot(daxs, k_max, mean_dic, std_dic, fill=args.fill)
 
     if args.horizontal is not None:
-        plot_horiz(daxs, args.horizontal)
+        mpm.plot_horiz_vert(daxs, horiz=args.horizontal)
 
     if args.y_range is not None:
-        change_ylim(daxs, args.y_range)
+        mpm.change_xylim(daxs, y_lim=args.y_range)
 
     shave_y_tick_labels(daxs)
 
@@ -935,7 +849,7 @@ def main(argv):
     if args.legend is not None:
         if args.legend_plot is None:
             args.legend_plot = short_names[0]
-        legend_ = draw_legend(fig, daxs, args.legend, args.legend_plot, args.loc)
+        legend_ = mpm.draw_legend(fig, daxs, args.legend, args.legend_plot, args.loc)
 
     plt.tight_layout(h_pad=0, pad=0.2, rect=args.bounds)
     if args.ofile is None:
