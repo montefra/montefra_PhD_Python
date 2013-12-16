@@ -136,7 +136,7 @@ def print_table(fname, mean, std_perc, tags, paramnames, std=True, fmt="%7.6f", 
   out.write("    \\caption{1D marginalised constraints for the cases: %s} \\label{tab:1Dmarg}\n" % (", ".join(tags)))  #caption and label
   out.write("    \\begin{tabular}{ l%s }\n    \\hline\n" %(" c"*len(tags) ))   # table type
   out.write("      & %s \\\\\n      \\hline\n" %(" & ".join(tags)))   #write the header 
-  for i,p,r in it.izip(it.count(), paramnames, rescale):   #for 1: rows of the table
+  for i,p,r in it.izip(it.count(), paramnames[0], rescale):   #for 1: rows of the table
     outrow='      $'  #row of the matrix
     if(np.absolute(r-1) > 1e-3):   #if a rescale required
       if(r.is_integer()==True):
@@ -144,7 +144,7 @@ def print_table(fname, mean, std_perc, tags, paramnames, std=True, fmt="%7.6f", 
       else:
 	strr = str(r)
       outrow += '{0}'.format(strr)
-    outrow += '{0[1]}$'.format(p.strip().split("\t"))
+    outrow += '{0[2]}$'.format(p)
     skipped = 0  #skipped columns
     for m,sp in it.izip(mean,std_perc):  #for 2: mean +- std (or percentile)
       if(std==True):
