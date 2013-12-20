@@ -61,8 +61,10 @@ def parse(argv):
 
     import argparse as ap 
     import argparse_custom as apc
+    import textwrap as tw
 
-    description = """    This program plot the values of the given parameters as
+    description = tw.dedent("""\
+    This program plot the values of the given parameters as
     function of the maximum scale used to perform the fit. 
     To build the file names first the maximum scale is computed:
     k_max=numpy.arange(range[0],range[1]+1,stride)/100.
@@ -73,7 +75,7 @@ def parse(argv):
     If more than a file root given and all the columns are plotted,
     the files must have the same structure. If only selected columns 
     are desired, then they must be present in all the files.
-    """
+    """)
 
     p = ap.ArgumentParser(description=description,
             formatter_class=apc.RawTextArgDefHelpFormatter)
@@ -86,7 +88,9 @@ def parse(argv):
     p = apc.version_verbose(p, '2')
 
     p.add_argument("--paramlist", action="store_true", default=False,
-            help="Read the parameter list from the fist file, print it out and close the program")
+            help=tw.dedent("""\
+                    Read the parameter list from the fist file, print it out and
+                    close the program"""))
 
     # file related options
     pf = p.add_argument_group(description='Input-output file options')
@@ -112,8 +116,9 @@ def parse(argv):
             help="""Plot only the variance.""")
 
     pp.add_argument("-c", "--columns", action="store", nargs='+', 
-            help="""Name of the columns to plot, as appears in the first column of
-each parameter file name. If not given, all columns are read""")
+            help=tw.dedent("""\
+                    Name of the columns to plot, as appears in the first column
+                    of each parameter file name. If not given, all columns are read"""))
 
     pp.add_argument("-n", "--nsigma", action="store", type=int, default="1",
             help="Plot the ns-sigma error bars.")
@@ -128,64 +133,65 @@ each parameter file name. If not given, all columns are read""")
             help="Line width.")
 
     pp.add_argument("--shift", action="store", type=float, default=0,
-            help="""Displace the errorbars by '%(dest)s' to avoid overlap.
-Ignored if 'fill-between' is used""")
+            help=tw.dedent("""\
+                    Displace the errorbars by '%(dest)s' to avoid overlap.
+                    Ignored if 'fill-between' is used"""))
 
     pp.add_argument("-f", "--fill", action=apc.required_range(0, 1), 
-            type=float, nargs=2, 
-            help="""Substitute errorbars with matplotlib 'fill_between' 
-with transparencies in the range [0,1]. 
-No transparency for eps.""")
+            type=float, nargs=2, help=tw.dedent("""\
+                    Substitute errorbars with matplotlib 'fill_between' with
+                    transparencies in the range [0,1].  No transparency for
+                    eps."""))
 
     pp.add_argument("--horizontal", nargs='+',
-            action=apc.multiple_of(2, reshape=True), 
-            help="""Plot an horizontal line in subplot '%(dest)s[0]' at
-y='%(dest)s[1]'. The sublot is identified with the short name 
-from the parameter file. Multiple lines can be drawn providing 
-couple of subplot-line.""")
+            action=apc.multiple_of(2, reshape=True), help=tw.dedent("""\
+                    Plot an horizontal line in subplot '%(dest)s[0]' at
+                    y='%(dest)s[1]'. The sublot is identified with the short
+                    name from the parameter file. Multiple lines can be drawn
+                    providing couple of subplot-line."""))
 
     pp.add_argument("--figsize", type=float, nargs=2,
             action=apc.Cm2Inch, help="Figure size in cm")
     pp.add_argument("-b", "--bounds", action="store", type=float, nargs=4,
-            default=[0, 0, 1, 1], 
-            help="""(left, bottom, right, top) in the normalized figure
-coordinate passed to 'plt.tight_layout'""")
+            default=[0, 0, 1, 1], help=tw.dedent("""\
+                    (left, bottom, right, top) in the normalized figure
+                    coordinate passed to 'plt.tight_layout'"""))
 
     pp.add_argument("-r", "--rescale", nargs='+',
-            action=apc.multiple_of(2, reshape=True), 
-            help="""Rescale the abscissa in subplot '%(dest)s[0]' by
-'%(dest)s[1]'. The same rescaling factor is shown in 
-the y label. The sublot is identified with the short 
-name from the parameter file. Multiple rescaling can 
-be drawn providing couple of subplot-rescaling.""")
+            action=apc.multiple_of(2, reshape=True), help=tw.dedent("""\
+                    Rescale the abscissa in subplot '%(dest)s[0]' by
+                    '%(dest)s[1]'. The same rescaling factor is shown in the y
+                    label. The sublot is identified with the short name from
+                    the parameter file. Multiple rescaling can be drawn
+                    providing couple of subplot-rescaling."""))
             
     pp.add_argument("--x-label", default="$k_{\mathrm{max}}\,[h/Mpc]$", help='x axis label')
     pp.add_argument("--y-label", nargs='+', action=apc.multiple_of(2, reshape=True), 
-            help="""Set y axis label in subplot '%(dest)s[0]' to '%(dest)s[1]'.
-The sublot is identified with the short name 
-from the parameter file. Multiple labels can 
-be drawn providing couple of subplot-label.""")
+            help=tw.dedent("""\
+                    Set y axis label in subplot '%(dest)s[0]' to '%(dest)s[1]'.
+                    The sublot is identified with the short name from the
+                    parameter file. Multiple labels can be drawn providing
+                    couple of subplot-label."""))
 
     pp.add_argument("--y-range", nargs='+', action=apc.multiple_of(3, reshape=True), 
-            help="""Set y axis range in subplot '%(dest)s[0]' to '%(dest)s[1]'.
-The sublot is identified with the short name 
-from the parameter file. Multiple ranges can 
-be set providing couple of subplot-range.""")
+            help=tw.dedent("""\
+                    Set y axis range in subplot '%(dest)s[0]' to '%(dest)s[1]'.
+                    The sublot is identified with the short name from the
+                    parameter file. Multiple ranges can be set providing couple
+                    of subplot-range."""))
 
     #legend options
     pl = p.add_argument_group(description='Legend options')
 
-    pl.add_argument("-l", "--legend", nargs='+', 
-            help="""Legend tags. If given, the number of elements must be the
-same as the number of input root and in the same order.""")
+    pl.add_argument("-l", "--legend", nargs='+', help=tw.dedent("""\
+            Legend tags. If given, the number of elements must be the same as
+            the number of input root and in the same order."""))
 
-    pl.add_argument("--legend-plot", action="store", 
-            help="""Put the legend in plot '%(dest)s'. The sublot is 
-identified with the short name from the 
-parameter file. If '%(dest)s' is not in
-the list of parameters, the figure legend
-is drawn. If not given, the legend is drawn
-in the first plot""")
+    pl.add_argument("--legend-plot", action="store", help=tw.dedent("""\
+            Put the legend in plot '%(dest)s'. The sublot is identified with
+            the short name from the parameter file. If '%(dest)s' is not in the
+            list of parameters, the figure legend is drawn. If not given, the
+            legend is drawn in the first plot"""))
 
     pl.add_argument("--loc", type=apc.int_or_str, default=0,
             help='Legend location (see matplotlib legend help)')
@@ -195,8 +201,9 @@ in the first plot""")
 
 
     #correction of the variance due to number of mocks and bins: Percival ... 2013
-    description = """Correct the estimated variance by sqrt(m1) or sqrt(m2), as
-    in Percival et al. 2013"""
+    description = tw.dedent("""\
+            Correct the estimated variance by sqrt(m1) or sqrt(m2), as in
+            Percival et al. 2013""")
     pc = p.add_argument_group(description=description)
     lines = get_ini().replace('%', '%%')
     lines = ["Inifile with the following structure:", lines]
