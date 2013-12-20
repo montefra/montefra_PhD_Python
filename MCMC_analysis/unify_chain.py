@@ -217,7 +217,7 @@ def printGR(fname, conv, paramnames):
 def marg(chain, sd=True, percentile=None, verbose=False):
     """ 
     Given a MCMC chain 'chain' and a list of percentiles, return the mean, 
-    the standard devition and the values corresponding to the percentiles required
+    the standard deviation and the values corresponding to the percentiles required
 
     Parameters
     ----------
