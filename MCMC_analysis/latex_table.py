@@ -1,205 +1,350 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import contour_func as cf   #functions used in contour plot
 import itertools as it
 import my_statistic as ms
 import numpy as np    # import numpy
-import optparse as op  #import optsparse: allows nice command line option handling
 import os    #contain OS dependent stuffs: it helps with sistem portability  
 import sys    #mondule sys
-import unify_chain as uc
-
-def options(p):
-  """
-  This function accept the option parser istance and fill it with options.
-
-  The version must be set when creating the optparse istance
-
-  Parameters
-  ----------
-  p: option parser istance
-
-  output: tuple with the options and the arguments
-  ---------
-  """
-
-  p.set_usage("""
-  %prog [options] file_root1 tag1 [file_root2 tag2 ... file_rootn tagn]
-  Given a list of file roots and of corresponding tags, reads the parameter name files and the chain files.
-  Then computes the mean and either the standard deviation (default) or the given percentile
-  of the parameters for each chain (chains assumed to have the following structure: chain[:,0]=weight;
-  chain[:,1]=likelihood]; chain[:,2:]=parameters).
-  The mean and the stddev or percentile are printed in a latex table with the following format:
-  --------------------------------------------------------------------------------------
-  		tag1			tag2			...	tagn
-  --------------------------------------------------------------------------------------
-  parameter1	m1+-s1(p1)(file1)	m1+-s1(p1)(file2)	...	m1+-s1(p1)(filen)
-  parameter2	m2+-s2(p2)(file1)	m2+-s2(p2)(file2)	...	m2+-s2(p2)(filen)
-  ...		...			...			...	...
-  parameterm	mm+-sm(pm)(file1)	mm+-sm(pm)(file2)	...	mm+-sm(p1)(filen)
-  --------------------------------------------------------------------------------------
-  """)
-
-  p.add_option("-v", "--verbose", action="store_true", dest="verbose", help="Produces more output.")  # verbose option
-
-  p.add_option("-w", "--what", action="store", dest="what", nargs=2, default=["s", "1"], help="Decide what to do: what[0]= 's' (standard deviation) or 'p' (percentile); if 's' the what[1]*sigma values saved, if 'p' the what[1] percentile values around the mean comuted and saved. [Default: %default]")
-  p.add_option("-f", "--format", action="store", dest="fmt", default="%7.6f", help="Formatter for the numbers in the output table. [Default: %default]")
-
-  p.add_option("-r", "--rescale", action="append", dest="rescale", type=float, nargs=2, help="Rescale the values in position rescale[0] by multiplying the values by rescale[1]. The same rescaling factor is shown in the parameter name.")
-
-  p.add_option("-o", "--output", action="store", dest="outfile", default="latextable.tex", help="Output file name. [Default: %default]")
-
-  p.add_option("--comment", action="store_true", dest="comment", default=False, help="Comment rows of the matrix when all the elements have null variance")
-
-  p.add_option("-c", "--chain-ext", action="store", dest="cext", default=".0.5_total.txt", help="'file_rooti+cext': file containing the chains. [Default: %default]")
-  p.add_option("-p", "--parname-ext", action="store", dest="pext", default=".paramnames", help="'file_rooti+cext': file containing the name of the parameters. [Default: %default]")
-
-  return p.parse_args()
-
-def check_optarg((opt, args)):
-  """
-  Check if the input options and parameters are ok.
-  
-  Parameters
-  ----------
-  options: dictionary
-    dictionary of options returned by optparse
-  args: list
-    list of arguments returned by optparse
-
-  output:
-    opt: dictionary of the options
-    file_roots: list of file roots
-    tags: list of tags
-  """
-
-  if(len(args) < 2 or len(args)%2!=0):
-    raise SystemExit("The program requires file name roots and followed by the associated tags: file_root1 tag1 [file_root2 tag2 ... file_rootn tagn]") 
-  else:
-    file_roots = args[::2]
-    tags = args[1::2]
-
-  #check 'opt.what'
-  if not (opt.what[0] in ("s", "p")):
-    raise KeyError("The option '-w','--what' accepts only 's' and 'p' as firts elements")
-
-  return opt, file_roots, tags
-
-def print_table(fname, mean, std_perc, tags, paramnames, std=True, fmt="%7.6f", rescale=None, comment=False):
-  """
-  Print on 'fname' the mean and standard deviation or percentile 
-  for the parameters in paramnames and uses tags as the first row ofthe matrix
-
-  Parameters
-  ----------
-  fname: string
-    output file name
-  mean: 1D array
-    mean of the parameters
-  std_perc: 1D or 2D array
-    standard deviation of the parameters and scores of the percentiles. 
-    The first column are the percentiles to consider. For each percentile, 
-    the two scores at (percentile/2.) and (100 - percentile/2.) must be listed
-  tags: list
-    list of tags to be used in the first row of the matrix
-  paramnames: list
-    list of strings containing the parameter names with the format "name \t latex code"
-  std: bool (optional)
-    if 'True', 'std_perc' expected as 1D array containing the standard deviation;
-    otherwise 'std_perc' expected as 2D array containing the percentile.
-  fmt: string (optional)
-    formatting of the output
-  rescale: int or list (optional)
-    multply the mean and standard deviation by rescale. 
-    If None no rescaling apply, if a single float given, it is used for all the values, 
-    if len(rescale)=len(paramnames) to each parameter is multiplied according to the corresponding value.
-    If rescale[i] is different from one, the same factor is written in front of the parameter name
-  comment: bool (optional)
-    comment rows where all the columns are '--'
-  """
-  #check rescale
-  if(rescale==None):
-    rescale = [1 for i in range(len(paramnames))] #initialise the list for the rescaling of the given parameters
-  elif(type(rescale).__name__ == 'float' or type(rescale).__name__ == 'int'):
-    rescale = [float(rescale) for i in range(len(paramnames))] #initialise the list for the rescaling of the given parameters
-  elif(type(rescale).__name__ == 'list'):
-    if(len(rescale) != len(paramnames)):
-      raise SystemExit("If 'rescale' is a list it must be the same length of paramnames")
-  else:
-    raise TypeError("Accepted types for 'rescale': None, float, integer, list.")
 
 
-  out = open(fname, 'w')    #open file
-  out.write("\\documentclass[10pt]{article}\n \\begin{document}\n\n")
-  out.write("\\begin{table*}\n  \\centering\n  \\begin{minipage}{160mm}\n")   #LaTex table
-  out.write("    \\caption{1D marginalised constraints for the cases: %s} \\label{tab:1Dmarg}\n" % (", ".join(tags)))  #caption and label
-  out.write("    \\begin{tabular}{ l%s }\n    \\hline\n" %(" c"*len(tags) ))   # table type
-  out.write("      & %s \\\\\n      \\hline\n" %(" & ".join(tags)))   #write the header 
-  for i,p,r in it.izip(it.count(), paramnames[0], rescale):   #for 1: rows of the table
-    outrow='      $'  #row of the matrix
-    if(np.absolute(r-1) > 1e-3):   #if a rescale required
-      if(r.is_integer()==True):
-	strr = str(int(r))
-      else:
-	strr = str(r)
-      outrow += '{0}'.format(strr)
-    outrow += '{0[2]}$'.format(p)
-    skipped = 0  #skipped columns
-    for m,sp in it.izip(mean,std_perc):  #for 2: mean +- std (or percentile)
-      if(std==True):
-	if(np.absolute(sp[i]/m[i]) > 1e-07):
-	  outrow += str(" & $"+fmt+"\pm"+fmt+"$") %(r*m[i], r*sp[i])   #add param mean +- std
-	else:
-	  outrow += " & -- "    #skip constant parameter
-	  skipped += 1   #has been skipped
-      else:
-	if(np.absolute( (sp[0,i]+sp[1,i])/(2.*m[i]) ) > 1e-07):
-	  outrow += str(" & $"+fmt+"_{"+fmt+"}^{+"+fmt+"}$") %((r*m[i]), (r*sp[0,i]), (r*sp[1,i]))   #write mean +- 68perc
-	else:
-	  outrow += " & -- "
-	  skipped += 1   #has been skipped
-    #end for 2: mean +- std (or percentile)
-    if( comment==True and skipped == len(tags) ):  #if the empty lines are to be commented
-      outrow = "%"+outrow
-    out.write(outrow+"\\\\[1.5mm]\n")
-  #end for 1: rows of the table
-  out.write("      \\hline\n    \\end{tabular}\n  \\end{minipage}\n\\end{table*}")   #LaTex table
-  out.write("\n\n\\end{document}\n")
-  out.close()  #close file
+class MyWarning(UserWarning):
+    pass
 
-  pass
+def parse(argv):
+    """
+    This function accept a list of strings, create and fill a parser instance 
+    and return a populated namespace
+
+    Parameters
+    ----------
+    argv: list of strings
+        list to be parsed
+
+    output: namespace
+    ---------
+    """
+
+    import argparse as ap 
+    import argparse_custom as apc
+    import textwrap as tw
+
+    description = tw.dedent("""\
+    Given a list of file roots and of corresponding tags, reads the parameter
+    name files and the chain files. Then computes the mean and either the
+    standard deviation (default) or the given percentile of the parameters for
+    each chain (chains assumed to have the following structure:
+    chain[:,0]=weight; chain[:,1]=likelihood]; chain[:,2:]=parameters).
+    The mean and the stddev or percentile are printed in a latex table with the following format:
+    --------------------------------------------------------------------------------------
+                       tag1                   tag2          ...        tagn
+    --------------------------------------------------------------------------------------
+    parameter1    m1+-s1(p1)(file1)    m1+-s1(p1)(file2)    ...    m1+-s1(p1)(filen)
+    parameter2    m2+-s2(p2)(file1)    m2+-s2(p2)(file2)    ...    m2+-s2(p2)(filen)
+    ...                 ...                  ...            ...             ...
+    parameterm    mm+-sm(pm)(file1)    mm+-sm(pm)(file2)    ...    mm+-sm(p1)(filen)
+    --------------------------------------------------------------------------------------
+    """)
+
+    p = ap.ArgumentParser(description=description,
+            formatter_class=apc.RawDescrArgDefHelpFormatter)
+
+    p.add_argument("froot-tag", nargs='+', action=apc.multiple_of(2,
+            reshape=True), help="Input file name(s) and header tags. They must be given in pairs")
+
+    p = apc.version_verbose(p, '2')
+
+    # columns 
+    p.add_argument("-c", "--columns", action="store", nargs='+', 
+            help="""Name of the columns as they appear in the first column of
+            each parameter file name.""")
+
+    class What(ap.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if values[0] not in ['s', 'p']:
+                msg = "Only 's' or 'p' accecpted as first argument"
+                raise ap.ArgumentTypeError(msg)
+            else:
+                try:
+                    values[1] = float(values[1])
+                except ValueError:
+                    msg = "The second argument must be a float"
+                    raise ap.ArgumentTypeError(msg)
+            setattr(namespace, self.dest, values)
+    p.add_argument("-w", "--what", nargs=2, default=["s", 1.], action=What,
+            help="""Decide what to do: '%(dest)s[0]= s' (standard deviation) or 'p'
+            (percentile); if 's' the '%(dest)s[1]*sigma' values saved, if 'p' the
+            '%(dest)s[1] percentile values around the mean computed and saved.""")
+
+    p.add_argument("-r", "--rescale", nargs='+', action=apc.multiple_of(2,
+            reshape=True), help="""Rescale the values of variable '%(dest)s[0]' by
+            '%(dest)s[1]'. The same rescaling factor is shown in the parameter
+            label.  The variable is identified with the short name from the
+            parameter file.  Multiple rescaling can be drawn providing couple of
+            variable-rescaling.""")
+
+    p.add_argument("--comment", action="store_true", help="""Comment rows of
+            the matrix when all the elements have null variance""")
+
+    # file related options
+    pf = p.add_argument_group(description='Input-output file options')
+
+    pf.add_argument("--ext-chain", action="store", default=".0.5_total.dat",
+            help="""Extension to create the chain file names""")
+    pf.add_argument("--ext-parmn", action="store", default=".paramnames",
+            help="""Extension of the parameter file names""")
+
+    pf.add_argument("-o", "--output", default="latextable.tex", 
+            help="Output file name")
+
+    pf.add_argument("-f", "--format", default="%7.6f",
+            help="Formatter for the numbers in the output table.")
+
+    return p.parse_args(args=argv)
+
+def do_std_perc(what):
+    """
+    find if standard deviation or percentile needs to be computed
+    Parameters
+    ----------
+    what: list
+        what[0] = ['s', 'p'], what[1] = float
+    output
+    ------
+    do_std: bool
+        do the standard deviation
+    perc_lev: float
+        percentile score
+    """
+    if what[0] == 's':
+        return True, None
+    else:
+        return False, kwargs['what'][1]
+
+def do_mean_std(froots, **kwargs):
+    """
+    Read the files and compute the mean and standard deviation/percentile
+    Parameters
+    ----------
+    froots: list
+        list of file roots
+    kwargs: dictionary
+        +verbose: bool
+        +columns: list or None
+            name of the columns to read
+        +ext_paramn: string
+            extension of the parameter name file
+        +ext_chain: string
+            extension of the chains file
+        +what: list
+            do the standard deviation or the percentile
+    output
+    ------
+    keylist: list
+        ordered lists of parameter short names
+    longnames: dictionary
+        key: parameter short name; value: long name
+    mean: dictionary
+        key: parameter short name; value: list of mean values with 
+        len(mean[k]) == len(froots)
+    std_perc: dictionary
+        key: parameter short name; value: list of standard deviation or
+        percentile with len(mean[k]) == len(froots)
+    """
+    import contour_func as cf   #functions used in contour plot
+    import unify_chain as uc
+
+    # if froots is a string convert to a list
+    is_string, _ = cf._check_type(froots)
+    if is_string:
+        froots = [froots]
+    paramnames = cf.get_paramnames(froots, params=kwargs.get('columns'),
+            ext=kwargs.get('ext_paramn'), verbose=kwargs.get('verbose', False))
+
+    # get the column numbers and the chains
+    cols = [[j[0]+2 for j in i] for i in paramnames]
+    chains = cf.get_chains(froots, cols, ext=kwargs.get('ext_chains'),
+            verbose=kwargs.get('verbose', False))
+
+    # create a list of keywords and the dictionary of long names
+    keylist = [j[1] for j in paramnames[0]]
+    longnames = {j[1]: j[2] for j in paramnames[0]}
+    for pn in paramnames[1:]: # loop through the remaining paramnames
+        for i,p in enumerate(pn):
+            if p[1] not in keylist:
+                prev_ind = keylist.index(keylist[i-1])
+                keylist.insert(prev_ind+1, p[1])
+                longnames[p[1]] = p[2]
+
+    do_std, perc_lev = do_std_perc(kwargs['what'])
+    # compute mean and std or percentile
+    mean = {k:[] for k in keylist}
+    std_perc = {k:[] for k in keylist}
+    for pn, ch in zip(paramnames, chains): # loop the files
+        # compute mean and stddev or percentile
+        lmean, lstd_perc = uc.marg(ch, sd=do_std, percentile=perc_lev,
+                verbose=kwargs.get('verbose', False))
+        loc_kl = [j[1] for j in pn]  # list of short names of the current loop
+        # loop the general key list
+        for k in keylist:  
+            try: # if k is in the list
+                kind = loc_kl.index(k)
+                mean[k].append(lmean[kind])
+                if do_std:
+                    std_perc[k].append(lstd_perc[kind])
+                else:
+                    std_perc[k].append(lstd_perc[kind,1:]-lmean)
+            except ValueError:
+                mean[k].append(np.nan)
+                std_perc[k].append(np.nan)
+
+    return keylist, longnames, mean, std_perc
+
+def do_rescale(mean, std_perc, labels, rescale):
+    """
+    Rescale mean and standard deviation 
+    Parameters
+    ----------
+    mean: dictionary
+        key: parameter short name; value: list of mean values with 
+        len(mean[k]) == len(froots)
+    std_perc: dictionary
+        key: parameter short name; value: list of standard deviation or
+        percentile with len(mean[k]) == len(froots)
+    labels: dictionary
+        key: parameter short name; value: labels for the table rows
+    rescale: list of len(2) lists 
+        new_labels[i] = [key, rescale]
+    output
+    ------
+    mean, std_perc, labels: dictionary
+        input with the variables rescaled
+    """
+    for (k, r) in rescale:
+        if k not in mean:
+            warn("Key '{}' is not in mean and std dictionaries".format(k), MyWarning)
+        else:
+            r = float(r)
+            mean[k] = [m*r for m in mean[k]]
+            std_perc[k] = [sp*r for m in std[k]]
+            if(r.is_integer()==True):
+                strr = str(int(r))
+            else:
+                strr = str(r)
+            labels[k] = strr+labels[k] 
+    return mean, std_perc, labels
+
+def make_table(mean, std_perc, labels, **kwargs):
+    """
+    create the table 
+    Parameters
+    ----------
+    mean: dictionary
+        key: parameter short name; value: list of mean values with 
+        len(mean[k]) == len(froots)
+    std_perc: dictionary
+        key: parameter short name; value: list of standard deviation or
+        percentile with len(mean[k]) == len(froots)
+    labels: dictionary
+        key: parameter short name; value: long name
+    kwargs: dictionary
+        +verbose: bool
+        +what: list
+            do the standard deviation or the percentile
+        +comment: bool
+            don't show empty lines
+
+    output
+    ------
+    table: dictionary
+        key: parameter short name; value: line to save in the table
+    """
+    if kwargs.get('verbose', False):
+        print("Making the table")
+    do_std, _ = do_std_perc(kwargs['what'])
+
+    # cell input
+    if do_std:
+        cell = r"${{0:{0}}} \pm {{1:{0}}}$"
+    else:
+        cell = r"${{0:{0}}}_{{1[0]:+{0}}}^{{1[1]:+{0}}}$"
+    cell = cell.format(kwargs['format'])
+
+    table = {}
+    for k,l in labels.items():
+        line = ["$"+l+"$"]
+        for m,s in zip(mean[k], std_perc[k]):
+            if np.isnan(m): # if the mean is nan, the variable does not exist
+                line.append("--")
+            else:
+                line.append(cell.format(m, s))
+        if line.count("--") != len(m) or kwargs.get('comment', False):
+            table[k] = " & ".join(line)+r"\\[0.5mm]"
+
+    return table
+
+def save_table(fname, tags, keylist, table, **kwargs):
+    """
+    Save the table into file fname
+    Parameters
+    ----------
+    fname: string
+        file name of the latex table
+    tags: list
+        tags of the column headers
+    keylist: list
+        list of keys of the table. Used to print the table ordered
+    table: dictionary
+        key: parameter short name; value: line to save in the table
+    """
+    
+    otable  = [r'\begin{table*}']
+    otable += [r'  \centering']
+    otable += [r'  \begin{minipage}{160mm}']
+    otable += [r'    \caption{<+Caption text+>}']
+    otable += [r'    \label{tab:<+label+>}']
+    otable += [r'    \begin{tabular}{l'+'c'*len(tags)+'}']
+    otable += [r'      \hline']
+    otable += [r'       & '+' & '.join(tags)+r" \\"]
+    otable += [r'      \hline']
+
+    for k in keylist:
+        otable += ['      '+table[k]]
+
+    otable += [r'      \hline']
+    otable += [r'    \end{tabular}']
+    otable += [r'  \end{minipage}']
+    otable += [r'\end{table*}']
+
+    with open(fname, 'w') as f:
+        f.writelines(otable)
+
+
+#############################################
+###                 Main                  ###
+#############################################
+
+def main(argv):
+    args = parse(argv)
+
+    # separate the file roots from the tags
+    args.froot, args.tag = [], []
+    for ft in args.froot_tag: 
+        args.froot.append(ft[0])
+        args.tag.append(ft[1])
+
+    # compute the mean and standard deviation or percentile
+    keylist, longnames, mean, std_perc = do_mean_std(args.froots, **vars(args))
+
+    # rescale some value
+    mean, std_perc, longnames = do_rescale(mean, std_perc, longnames, args.rescale)
+
+    # create the latex table
+    dtable = make_table(mean, std_perc, longnames, **vars(args))
+
 
 if __name__ == "__main__":   # if is the main
 
-  """read a list of chains and the corresponding parameter name files and 
-  creates a latex table"""
-
-  opt, froots, tags = check_optarg(options(op.OptionParser(version="%prog version 1")))   #create the object optparse
-
-  paramnames = cf.get_paramnames(froots, ext=opt.pext, verbose=opt.verbose)
-
-  rescale = [1 for i in range(len(paramnames))] #initialise the list for the rescaling of the given parameters
-  if(opt.rescale != None):   #if a tuple of values to draw the horizontal line is given order it
-    for h in opt.rescale:
-      rescale[int(h[0])] = h[1]
-
-  mean, std_perc = [],[]  #initialise the lists that will contain the mean and stddev or percentiles
-  if(opt.what[0] == "s"):  #check if standard deviation of percentile required
-    std, perc = True, None
-  else:
-    std, perc = False, float(opt.what[1])
-  for fn in froots:   #read the chains and computed what is required
-    if(opt.verbose == True):
-      print "Computed mean and standard deviation or percentile on file '%s'" %(fn+opt.cext)
-    tm, tsp = uc.marg(np.loadtxt(fn+opt.cext), sd=std, percentile=perc, verbose=opt.verbose)
-    if(std == False):
-      tsp = tsp[:,1:]    #do not consider the first column that contains the values of the percentile
-      tsp = tsp - np.vstack([tm,]*2)
-    mean.append(tm)
-    std_perc.append(tsp)
-
-  print_table(opt.outfile, mean, std_perc, tags, paramnames, std=std, fmt=opt.fmt, rescale=rescale, comment=opt.comment)
-
-  sys.exit(0)
-
+    import sys
+    main(sys.argv[1:])
+    exit()
