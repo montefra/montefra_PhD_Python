@@ -84,7 +84,7 @@ def _get_paramnames(fname, params=None, verbose=False, skip=False):
                 tmn = [m.strip() for m in mn.split('\t')]
                 if(p==tmn[0].strip('*')):  # shave space and '*'
                     # save the index and the latex name. 
-                    parindex.append([i, tmn[0], tmn[1]]) 
+                    parindex.append([i, tmn[0].strip('*'), tmn[1]]) 
                     break
         if len(parindex) != len(params):
             raise ContourError("""File '{}' doesn't have at least one of the
@@ -132,24 +132,23 @@ def get_paramnames(file_roots, params=None, ext=".paramnames", verbose=False, sk
             skip=skip) for fr in file_roots]
         return(parindex)
 
-
 def get_chains(file_roots, cols, ext=".txt", verbose=False):
     """Reads the paramnames files of the cosmomc
 
     Parameters
     ----------
     file_roots: list
-    list of file root of the chain to be plotted
+        list of file root of the chain to be plotted
     cols: list of lists with len(cols)==len(file_roots)
-    list containing the list of columns to read from the files
+        list containing the list of columns to read from the files
     ext: string (optional)
-    extention of the chain files
+        extention of the chain files
     verbose: bool (optional)
-    if True print more output
+        if True print more output
     output
     ------
     chains: list of array
-    list of array containing all the input chains
+        list of array containing all the input chains
     """
 
     chains = []   #save the arrays of the chains
@@ -160,7 +159,6 @@ def get_chains(file_roots, cols, ext=".txt", verbose=False):
                 print("Reading file '{}'".format(f.name))
             chains.append(np.loadtxt(f, usecols=c))   #load the chain file
     return chains
-
 
 def hist2D(a, xr=None, yr=None, bins=30, smooth=False):
     """
@@ -227,7 +225,6 @@ def hist2D(a, xr=None, yr=None, bins=30, smooth=False):
             xe.append(txe)
             ye.append(tye)
     return h2D, xe, ye
-
 
 def h2D2conflev(a, levels):
     """
