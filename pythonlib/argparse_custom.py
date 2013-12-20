@@ -10,7 +10,7 @@ class RawDescrArgDefHelpFormatter(ap.RawDescriptionHelpFormatter,
         ap.ArgumentDefaultsHelpFormatter):
     """
     Enable features of 'RawDescriptionHelpFormatter' and 'ArgumentDefaultsHelpFormatter' united
-    1) both description and epilog are already correctly formatted and should not be line-wrapped
+    1) both description and epilogue are already correctly formatted and should not be line-wrapped
     2) automatically adds information about default values to each of the argument help messages
     """
 #formatter_class that allows raw text and argument default
@@ -18,10 +18,10 @@ class RawTextArgDefHelpFormatter(ap.RawTextHelpFormatter,
         ap.ArgumentDefaultsHelpFormatter):
     """
     Enable features of 'RawTextHelpFormatter' and 'ArgumentDefaultsHelpFormatter' united
-    1) both description and epilog are already correctly formatted and should not be line-wrapped
-    2) automatically adds information about default values to each of the argument help messages
+    1) both description and epilogue are already correctly formatted and should not be line-wrapped
+    2) maintains whitespace for all sorts of help text, including argument descriptions
+    3) automatically adds information about default values to each of the argument help messages
     """
-
 
 #The following functions add arguments to argparse
 def version_verbose(p, version):
@@ -96,7 +96,6 @@ def overwrite_or_skip(p):
             existing output file names. No operation done on the corresponding
             input file.""")
     return p, group
-
 
 def cosmology_group(p, description=None, print_def=False, h0_def=None):
     """
@@ -193,7 +192,6 @@ def parallel_group(p, description=None):
             disable the printout""")
 
     return p, parallel
-
 
 # ==========================
 # Type classes and functions
@@ -296,7 +294,7 @@ class StoreFmt(ap.Action):
     a string 
     """
     def __call__(self, parser, namespace, values, option_string=None):
-        if( len(values) ==1 ):
+        if(len(values) == 1):
             setattr(namespace, self.dest, values[0])
         else:
             setattr(namespace, self.dest, values)
@@ -428,7 +426,6 @@ def multiple_of(multiple, reshape=False):
                 output = values
             setattr(args, self.dest, output)
     return MultipleOf
-
 
 class Cm2Inch(ap.Action):
     "convert the input from cm to inces. Useful for matplotlib figure sizes"
