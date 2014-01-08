@@ -146,7 +146,7 @@ def parse(argv):
     pl.add_argument("--invert-legend", action="store_true", 
             help="Invert the legend entries")
 
-    pl.add_argument("--legend-frameon", action="store_true", default=False,
+    pl.add_argument("--legend-frameon", action="store_true", 
             help='Legend frame')
 
     return p.parse_args(args=argv)  
@@ -340,7 +340,8 @@ def main(argv):
             print("Drawing the legend")
         if args.legend_plot is None:
             args.legend_plot = list(daxs.keys())[0]
-        legend_ = mpm.draw_legend(fig, daxs, args.legend_plot, args.loc)
+        legend_ = mpm.draw_legend(fig, daxs, args.legend_plot, args.loc,
+                hide_labels=True, hide_spines=True)
 
     # do vertical lines
     mpm.plot_horiz_vert(daxs, vert=args.vertical)

@@ -229,7 +229,7 @@ def change_xylim(axs_dic, x_lim=[], y_lim=[]):
         else:
             axs_dic[k].set_ylim([float(v1), float(v2)])
 
-def draw_legend(fig, axs_dic, whichax, loc, clabels=None):
+def draw_legend(fig, axs_dic, whichax, loc, clabels=None, **kwargs):
     """
     Draw the legend in figure 'fig' or one of the axes in 'axs_dic'.
     The function relies on legend handles, so the labels should be already
@@ -249,6 +249,10 @@ def draw_legend(fig, axs_dic, whichax, loc, clabels=None):
     loc: matplotlib legend locations
     clabels: list of string (optional)
         legend labels to substitute to the one already stored in the axes
+    kwargs: dictionary
+        +hide_labels: hide axis labels and ticks of legend plot, if legend drawn in its own axes
+        +hide_spines: hide axis spines of legend plot, if legend drawn in its own axes
+
     output
     ------
     matplotlib.legend.Legend instance
@@ -270,8 +274,12 @@ def draw_legend(fig, axs_dic, whichax, loc, clabels=None):
             axs_dic['empty'] = empty_ax[1:]
             axs_dic['legend'] = ax
             # make x and y axis invisible.
-            ax.xaxis.set_visible(False)
-            ax.yaxis.set_visible(False)
+            if kwargs.get('hide_labels', False):
+                ax.xaxis.set_visible(False)
+                ax.yaxis.set_visible(False)
+            if kwargs.get('hide_spines', False):
+                for v in ax.spines.values():
+                    v.set_visible(False)
 
     if clabels is not None:
         labels = clabels
