@@ -49,7 +49,7 @@ def parse(argv):
     p = ap.ArgumentParser(description=description,
             formatter_class=apc.RawDescrArgDefHelpFormatter)
 
-    p.add_argument("froot-tag", nargs='+', action=apc.multiple_of(2,
+    p.add_argument("froottag", metavar="froot-tag", nargs='+', action=apc.multiple_of(2,
             reshape=True), help="Input file name(s) and header tags. They must be given in pairs")
 
     p = apc.version_verbose(p, '2')
@@ -119,7 +119,7 @@ def do_std_perc(what):
     if what[0] == 's':
         return True, None
     else:
-        return False, kwargs['what'][1]
+        return False, what[1]
 
 def do_mean_std(froots, **kwargs):
     """
@@ -159,11 +159,11 @@ def do_mean_std(froots, **kwargs):
     if is_string:
         froots = [froots]
     paramnames = cf.get_paramnames(froots, params=kwargs.get('columns'),
-            ext=kwargs.get('ext_paramn'), verbose=kwargs.get('verbose', False))
+            ext=kwargs.get('ext_parmn'), verbose=kwargs.get('verbose', False))
 
     # get the column numbers and the chains
     cols = [[j[0]+2 for j in i] for i in paramnames]
-    chains = cf.get_chains(froots, cols, ext=kwargs.get('ext_chains'),
+    chains = cf.get_chains(froots, cols, ext=kwargs.get('ext_chain'),
             verbose=kwargs.get('verbose', False))
 
     # create a list of keywords and the dictionary of long names
@@ -183,7 +183,7 @@ def do_mean_std(froots, **kwargs):
     for pn, ch in zip(paramnames, chains): # loop the files
         # compute mean and stddev or percentile
         lmean, lstd_perc = uc.marg(ch, sd=do_std, percentile=perc_lev,
-                verbose=kwargs.get('verbose', False))
+                verbose=kwargs.get('verbose', False), has_like=False)
         loc_kl = [j[1] for j in pn]  # list of short names of the current loop
         # loop the general key list
         for k in keylist:  
@@ -193,7 +193,7 @@ def do_mean_std(froots, **kwargs):
                 if do_std:
                     std_perc[k].append(lstd_perc[kind])
                 else:
-                    std_perc[k].append(lstd_perc[kind,1:]-lmean)
+                    std_perc[k].append(lstd_perc[:,kind+1]-lmean[kind])
             except ValueError:
                 mean[k].append(np.nan)
                 std_perc[k].append(np.nan)
@@ -226,12 +226,12 @@ def do_rescale(mean, std_perc, labels, rescale):
         else:
             r = float(r)
             mean[k] = [m*r for m in mean[k]]
-            std_perc[k] = [sp*r for m in std[k]]
+            std_perc[k] = [sp*r for sp in std_perc[k]]
             if(r.is_integer()==True):
                 strr = str(int(r))
             else:
                 strr = str(r)
-            labels[k] = strr+labels[k] 
+            labels[k] = strr+r'\times'+labels[k] 
     return mean, std_perc, labels
 
 def make_table(mean, std_perc, labels, **kwargs):
@@ -264,11 +264,12 @@ def make_table(mean, std_perc, labels, **kwargs):
     do_std, _ = do_std_perc(kwargs['what'])
 
     # cell input
+    from string import Template
     if do_std:
-        cell = r"${{0:{0}}} \pm {{1:{0}}}$"
+        cell = Template(r"$${0:$fmt} \pm {1:$fmt}$$")
     else:
-        cell = r"${{0:{0}}}_{{1[0]:+{0}}}^{{1[1]:+{0}}}$"
-    cell = cell.format(kwargs['format'])
+        cell = Template(r"$${0:$fmt}_{{{1[0]:+$fmt}}}^{{{1[1]:+$fmt}}}$$")
+    cell = cell.substitute(fmt=kwargs['format'].strip('%'))
 
     table = {}
     for k,l in labels.items():
@@ -278,12 +279,12 @@ def make_table(mean, std_perc, labels, **kwargs):
                 line.append("--")
             else:
                 line.append(cell.format(m, s))
-        if line.count("--") != len(m) or kwargs.get('comment', False):
+        if line.count("--") != len(mean[k]) or kwargs.get('comment', False):
             table[k] = " & ".join(line)+r"\\[0.5mm]"
 
     return table
 
-def save_table(fname, tags, keylist, table, **kwargs):
+def save_table(fname, tags, keylist, table):
     """
     Save the table into file fname
     Parameters
@@ -317,7 +318,7 @@ def save_table(fname, tags, keylist, table, **kwargs):
     otable += [r'\end{table*}']
 
     with open(fname, 'w') as f:
-        f.writelines(otable)
+        f.writelines('\n'.join(otable))
 
 
 #############################################
@@ -329,18 +330,20 @@ def main(argv):
 
     # separate the file roots from the tags
     args.froot, args.tag = [], []
-    for ft in args.froot_tag: 
+    for ft in args.froottag: 
         args.froot.append(ft[0])
         args.tag.append(ft[1])
 
     # compute the mean and standard deviation or percentile
-    keylist, longnames, mean, std_perc = do_mean_std(args.froots, **vars(args))
+    keylist, longnames, mean, std_perc = do_mean_std(args.froot, **vars(args))
 
     # rescale some value
     mean, std_perc, longnames = do_rescale(mean, std_perc, longnames, args.rescale)
 
     # create the latex table
     dtable = make_table(mean, std_perc, longnames, **vars(args))
+    # and write it to file
+    save_table(args.output, args.tag, keylist, dtable) 
 
 
 if __name__ == "__main__":   # if is the main
