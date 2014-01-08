@@ -74,7 +74,7 @@ def check_optarg(options, args):
     """
     Check if the input options and parameters are ok.
     If the percentile scores are not given it sets the default.
-    
+
     Parameters
     ----------
     options: list
@@ -87,26 +87,27 @@ def check_optarg(options, args):
     """
 
     if(len(args) < 1):   #file_root required
-        print """One argument is required by the program
-        Type './%s -h' for more informations""" % os.path.basename(sys.argv[0])
+        errormsg="""One argument is required by the program. Type './{} -h' for more info"""
+        print(errormsg.format(os.path.basename(sys.argv[0])))
         sys.exit(10)
     if(options.fraction < 0. or options.fraction > 1.):
-        print "The fraction of the chain to be discarted must be a number in the range [0,1]"
+        print("The fraction of the chain to be discarted must be a number in the range [0,1]")
         sys.exit(11)
     if(options.marg == True):
         if(options.percentile == None):
             options.percentile = [68.]
             if(options.verbose == True):
-		print "percentile has been set to its default value %f" % options.percentile[0] 
+                print("percentile has been set to its default value %f" %
+                        options.percentile[0])
         for i in options.percentile:
             if(i<=0 or i>=100):
-		print "Percentile must be (0,100)"
-		sys.exit(12)
+                print("Percentile must be (0,100)")
+                sys.exit(12)
         options.percentile.sort() # sort the percentile from the input
     else:
         if(options.percentile != None):
-            print """The option -p or --percentile requires that -m or --marginalized is 'True'
-            Type './%s -h' for more informations""" % os.path.basename(sys.argv[0])
+            print("""The option -p or --percentile requires that -m or --marginalized is 'True'
+            Type './%s -h' for more informations""" % os.path.basename(sys.argv[0]))
             sys.exit(13)
 
     return options
@@ -114,7 +115,7 @@ def check_optarg(options, args):
 def get_file_names(options, args):
     """
     Get the file names and remove the output files if existing and the ones to be discarded
-    
+
     Parameters
     ----------
     options: list
@@ -144,11 +145,10 @@ def get_file_names(options, args):
             pass
 
     if len(flist) == 0:
-        print "No files with root '%s'." %args[0]
+        print("No files with root '%s'." %args[0])
         sys.exit(20)
     else:
         return flist
-
 
 def read_cut(fname, frac=0.5, verbose=False):
     """It reads the table in file 'fname' and store it into a numpy array.
@@ -156,11 +156,11 @@ def read_cut(fname, frac=0.5, verbose=False):
     'frac' must be [0,1] (no check for this in the function)
     if 'verbose == True' print out more information """
     if(verbose == True):
-        print "reading file %s" % i
+        print("reading file %s" % i)
     chain = np.loadtxt(fname)   #read the ith chain
 
     if(verbose == True):
-        print "cutting file %s" % i
+        print("cutting file %s" % i)
     discarded = np.sum(chain[:,0])*frac  #count the number steps of the chain and optain the number of steps to discard
     for j in np.arange(chain.shape[0]):  #get the number of lines to be discarded 
         part_sum = np.sum(chain[:j,0])
@@ -183,7 +183,7 @@ def read_paramnames(fname, verbose = False):
         list of strings containing the lines of the parameter name file
     """
     if(verbose == True):
-        print "Reading the file with the parameters' names: %s." % fname
+        print("Reading the file with the parameters' names: %s." % fname)
     pf = open(fname, 'r')   #open the file
     paramnames = pf.readlines()    #read saving the lines as a list of strings
     pf.close()              #close
@@ -192,7 +192,7 @@ def read_paramnames(fname, verbose = False):
 def printGR(fname, conv, paramnames):
     """
     Save the list of R values for each parameter, computed with the Gelman & Rubin criterion.
-    
+
     Parameters
     ----------
     fname: string
@@ -213,8 +213,7 @@ def printGR(fname, conv, paramnames):
     out.close()
     pass
 
-
-def marg(chain, sd=True, percentile=None, verbose=False):
+def marg(chain, sd=True, percentile=None, verbose=False, has_like=True):
     """ 
     Given a MCMC chain 'chain' and a list of percentiles, return the mean, 
     the standard deviation and the values corresponding to the percentiles required
@@ -229,28 +228,37 @@ def marg(chain, sd=True, percentile=None, verbose=False):
         if not None compute the percentiles provided 
     verbose: bool (optional)
         verbose mode
+    has_like: bool (optional)
+        if true, the second columns is assumed to contain the likelihood/chi^2 and is
+        skipped
 
     output: 1D and 2D array
         mean, stddev (if computed) and scores at the given percentiles (if computed)
     """
 
-    if(verbose == True):
-        print "Starting with the 1D marginalization."
+    if verbose:
+        print("Starting with the 1D marginalization.")
 
-    mean = np.average(chain[:,2:], weights=chain[:,0], axis=0)  #mean of all the columns containing parameters
-    if(sd == True):
-        stddev = ms.stddev(chain[:,2:], weights=chain[:,0], axis=0)      #stddev of all the columns containing parameters
-    if(verbose == True):
-        print "Mean and standard deviation computed."
+    weights = chain[:,0] # extract the weights
+    if has_like:  # extract the chains
+        ch = chain[:,2:]
+    else:
+        ch = chain[:,1:]
 
-    if(percentile != None):
-        tchain = ms.append_weights(chain[:,2:], chain[:,0])   #replicate the rows of the total chain according to the weights (done only once). WARNING: the first two columns are discarded
+    mean = np.average(ch, weights=weights, axis=0)  #mean of all the columns containing parameters
+    if sd:
+        stddev = ms.stddev(ch, weights=weights, axis=0)      #stddev of all the columns containing parameters
+    if verbose:
+        print("Mean and standard deviation computed.")
+
+    if percentile != None:
+        tchain = ms.append_weights(ch, weights)   #replicate the rows of the total chain according to the weights (done only once). WARNING: the first two columns are discarded
 
         perc = (100. - np.array(percentile))/2.    # convert perc to an array containing the lower and higher franction corresponding the all the percentiles ordered from smaller to larger
         perc = np.append(perc, 100.-perc)
         params_perc = ms.percentile(tchain, perc=perc)
-        if(verbose == True):
-            print "Percentiles computed."
+        if verbose:
+            print("Percentiles computed.")
 
     if(sd == True and percentile != None):
         return mean, stddev, params_perc
@@ -260,7 +268,6 @@ def marg(chain, sd=True, percentile=None, verbose=False):
         return mean, params_perc
     else:
         return mean
-
 
 def print_marg(fname, mean, stddev, percentile, scores, paramnames):
     """
@@ -302,7 +309,7 @@ def print_marg(fname, mean, stddev, percentile, scores, paramnames):
             out.write("      $%s$" % p.strip().split("\t")[1])   #parameter name
             out.write("\t & \t $%3.2e \pm %3.2e$" % (m, s))
             for j in list_perc:
-		out.write("\t & \t $%3.2e^{%3.2e}_{%3.2e}$" % (m, scores[j,i+1]-m, scores[-j-1,i+1]-m) )
+                out.write("\t & \t $%3.2e^{%3.2e}_{%3.2e}$" % (m, scores[j,i+1]-m, scores[-j-1,i+1]-m) )
             out.write("\\\\ \n")
     out.write("      \\hline \n    \\end{tabular} \n  \\end{minipage} \n\\end{table}")   #LaTex table
 
@@ -332,7 +339,7 @@ if __name__ == "__main__":   # if is the main
         outfileGR = outroot+"."+str(options.fraction)+".conv" # outfile for the results of the convergency test
 
     if(options.verbose == True):
-        print "The program will work on the following files %s." % flist
+        print("The program will work on the following files %s." % flist)
 
     tot_chain = [] #initialise list that contains the arrays from the various input files
     for i in flist:
@@ -341,26 +348,26 @@ if __name__ == "__main__":   # if is the main
     if(options.conv == True or options.marg == True):
         paramnames = read_paramnames(args[0]+".paramnames", verbose = options.verbose)  #read the parameter names
         if(len(paramnames) != tot_chain[0].shape[1]-2):  #check if there are errors
-            print "The number of parameters in the chain and in the parameter names file do not correspond." 
+            print("The number of parameters in the chain and in the parameter names file do not correspond.")
             sys.exit(100)
 
     if(options.conv == True):
         convlist = ms.GR_criterion(tot_chain)
         if(options.verbose == True):
-            print "Saving the values from the Gelman & Rubin convergence criterion to file '%s'." %outfileGR
+            print("Saving the values from the Gelman & Rubin convergence criterion to file '%s'." %outfileGR)
         printGR(outfileGR, convlist, paramnames)  #print the R values
 
     tot_chain = np.vstack(tot_chain)   #convert the list of arrays in a single array
 
     if(options.verbose == True):
-        print "Total chain created. It will be saved in the file '%s." % outfile
+        print("Total chain created. It will be saved in the file '%s." % outfile)
     np.savetxt(outfile, tot_chain, delimiter='\t', fmt=options.fmt)   #output chain saved
 
     if(options.marg == True):   #1D marginalization required
         mean, stddev, params_perc = marg(tot_chain, percentile=options.percentile, verbose=options.verbose)  #do the mean, standard deviation and percentile scores
 
         if(options.verbose == True):
-            print "Writing to the file %s the 1D statistics." % outfile1D
+            print("Writing to the file %s the 1D statistics." % outfile1D)
         print_marg(outfile1D, mean, stddev, options.percentile, params_perc, paramnames)   #print out the 1D marginalised file
 
     exit()
