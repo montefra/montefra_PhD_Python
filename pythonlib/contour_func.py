@@ -71,12 +71,12 @@ def _get_paramnames(fname, params=None, verbose=False, skip=False):
         else:
             raise IOError(e)
 
-    #save the paramnames and theid index into a list of lists
+    #save the paramnames and their index into a list of lists
     parindex = []
     if params is None:
         for i, mn in enumerate(temp):
             tmn = [m.strip() for m in mn.split('\t')]
-            parindex.append([i, tmn[0], tmn[1]]) 
+            parindex.append([i, tmn[0].strip('*'), tmn[1]]) 
     else:
         for p in params:  #loop the parameters to be used
             for i, mn in enumerate(temp): #loop the lines of the parameter file
