@@ -6,7 +6,7 @@ import my_statistic as ms
 import numpy as np    # import numpy
 import os    #contain OS dependent stuffs: it helps with sistem portability  
 import sys    #mondule sys
-
+from warnings import warn
 
 class MyWarning(UserWarning):
     pass
@@ -76,12 +76,11 @@ def parse(argv):
             (percentile); if 's' the '%(dest)s[1]*sigma' values saved, if 'p' the
             '%(dest)s[1] percentile values around the mean computed and saved.""")
 
-    p.add_argument("-r", "--rescale", nargs='+', action=apc.multiple_of(2,
+    p.add_argument("-r", "--rescale", nargs='+', default=[], action=apc.multiple_of(2,
             reshape=True), help="""Rescale the values of variable '%(dest)s[0]' by
-            '%(dest)s[1]'. The same rescaling factor is shown in the parameter
-            label.  The variable is identified with the short name from the
-            parameter file.  Multiple rescaling can be drawn providing couple of
-            variable-rescaling.""")
+            '%(dest)s[1]'. The same rescaling factor is shown in the parameter label.  The
+            variable is identified with the short name from the parameter file.  Multiple
+            rescaling can be drawn providing couple of variable-rescaling.""")
 
     p.add_argument("--comment", action="store_true", help="""Comment rows of
             the matrix when all the elements have null variance""")
@@ -231,7 +230,7 @@ def do_rescale(mean, std_perc, labels, rescale):
                 strr = str(int(r))
             else:
                 strr = str(r)
-            labels[k] = strr+r'\times'+labels[k] 
+            labels[k] = strr+r'\times '+labels[k] 
     return mean, std_perc, labels
 
 def make_table(mean, std_perc, labels, **kwargs):
