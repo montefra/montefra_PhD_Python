@@ -96,8 +96,11 @@ def parse(argv):
     pf.add_argument("-o", "--output", default="latextable.tex", 
             help="Output file name")
 
-    pf.add_argument("-f", "--format", default="%7.6f",
-            help="Formatter for the numbers in the output table.")
+    pf.add_argument("-f", "--format", default=[], nargs='+', action=apc.multiple_of(2,
+            reshape=True), help="""Set the format for the variable '%(dest)s[0]' to
+            '%(dest)s[1]'. The variable is identified with the short name from the parameter
+            file. Multiple formats can be given providing couple of variable-format. All the
+            variables without a specified format will have '%.3f' assigned""")
 
     return p.parse_args(args=argv)
 
@@ -233,6 +236,30 @@ def do_rescale(mean, std_perc, labels, rescale):
             labels[k] = strr+r'\times '+labels[k] 
     return mean, std_perc, labels
 
+def set_format(keylist, formats):
+    """
+    Adjust the format for every line of the table. Default '.3f'.
+    Parameters
+    ----------
+    keylist: list
+        list of keys of the table. Used to print the table ordered
+    formats: list of len(2) lists 
+        format[i] = [key, fmt]
+    output
+    ------
+    dformat: dictionary
+        key: parameter short name; value: format
+    """
+    dformat = {k: '%.3f' for k in keylist}
+
+    for (k, f) in formats:
+        if k not in dformat:
+            warn("Key '{}' is not in dformat".format(k), MyWarning)
+        else:
+            dformat[k] = f
+
+    return dformat
+
 def make_table(mean, std_perc, labels, **kwargs):
     """
     create the table 
@@ -252,6 +279,8 @@ def make_table(mean, std_perc, labels, **kwargs):
             do the standard deviation or the percentile
         +comment: bool
             don't show empty lines
+        +format: dictionary
+            key: parameter short name; value: format
 
     output
     ------
@@ -262,13 +291,14 @@ def make_table(mean, std_perc, labels, **kwargs):
         print("Making the table")
     do_std, _ = do_std_perc(kwargs['what'])
 
-    # cell input
+    dformat = kwargs['format']
+
+    # cell input template
     from string import Template
     if do_std:
-        cell = Template(r"$${0:$fmt} \pm {1:$fmt}$$")
+        tcell = Template(r"$${0:$fmt} \pm {1:$fmt}$$")
     else:
-        cell = Template(r"$${0:$fmt}_{{{1[0]:+$fmt}}}^{{{1[1]:+$fmt}}}$$")
-    cell = cell.substitute(fmt=kwargs['format'].strip('%'))
+        tcell = Template(r"$${0:$fmt}_{{{1[0]:+$fmt}}}^{{{1[1]:+$fmt}}}$$")
 
     table = {}
     for k,l in labels.items():
@@ -277,6 +307,7 @@ def make_table(mean, std_perc, labels, **kwargs):
             if np.isnan(m): # if the mean is nan, the variable does not exist
                 line.append("--")
             else:
+                cell = tcell.substitute(fmt=dformat[k].strip('%'))
                 line.append(cell.format(m, s))
         if line.count("--") != len(mean[k]) or kwargs.get('comment', False):
             table[k] = " & ".join(line)+r"\\[0.5mm]"
@@ -339,11 +370,13 @@ def main(argv):
     # rescale some value
     mean, std_perc, longnames = do_rescale(mean, std_perc, longnames, args.rescale)
 
+    # set the format of the table
+    args.format = set_format(keylist, args.format)
+
     # create the latex table
     dtable = make_table(mean, std_perc, longnames, **vars(args))
     # and write it to file
     save_table(args.output, args.tag, keylist, dtable) 
-
 
 if __name__ == "__main__":   # if is the main
 
