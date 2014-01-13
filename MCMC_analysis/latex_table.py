@@ -82,6 +82,12 @@ def parse(argv):
             variable is identified with the short name from the parameter file.  Multiple
             rescaling can be drawn providing couple of variable-rescaling.""")
 
+    p.add_argument("--label", nargs='+', default=[], action=apc.multiple_of(2,
+            reshape=True), help="""Set the label of the variable '%(dest)s[0]' to
+            '%(dest)s[1]'. The variable is identified with the short name from the
+            parameter file.  Multiple labels can be given providing couple of
+            variable-label.""")
+
     p.add_argument("--comment", action="store_true", help="""Comment rows of
             the matrix when all the elements have null variance""")
 
@@ -98,9 +104,10 @@ def parse(argv):
 
     pf.add_argument("-f", "--format", default=[], nargs='+', action=apc.multiple_of(2,
             reshape=True), help="""Set the format for the variable '%(dest)s[0]' to
-            '%(dest)s[1]'. The variable is identified with the short name from the parameter
-            file. Multiple formats can be given providing couple of variable-format. All the
-            variables without a specified format will have '%.3f' assigned""")
+            '%(dest)s[1]'. The variable is identified with the short name from the
+            parameter file. Multiple formats can be given providing couple of
+            variable-format. All the variables without a specified format will have '%.3f'
+            assigned""")
 
     return p.parse_args(args=argv)
 
@@ -369,6 +376,9 @@ def main(argv):
 
     # rescale some value
     mean, std_perc, longnames = do_rescale(mean, std_perc, longnames, args.rescale)
+    # change the name of some row
+    import myplotmodule as mpm
+    longnames = mpm.subsitute_labels(args.label, longnames)
 
     # set the format of the table
     args.format = set_format(keylist, args.format)
