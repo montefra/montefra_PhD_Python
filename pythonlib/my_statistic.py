@@ -141,7 +141,12 @@ def percentile(a, weights=None, perc=np.array([16.,84.])):
     output[:,0] = perc   #output[:,0] contains informations about the percentile scores
 
     for i,p in enumerate(perc):   #go through the various percentiles
-        output[i,1:] = sps.scoreatpercentile(a, p)  #and compute the corresponding score
+        #and compute the corresponding score
+        try:
+            output[i,1:] = sps.scoreatpercentile(a, p, axis=0) 
+        except TypeError:  # older version of scipy don't have the `axis` keyword
+            output[i,1:] = sps.scoreatpercentile(a, p) 
+
 
     return output
 
