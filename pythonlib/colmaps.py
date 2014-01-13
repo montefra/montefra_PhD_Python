@@ -60,7 +60,7 @@ def cols_shades(n_col, n_lev, alpha=1):
   else:
     alpha = alpha.flatten()
     if(np.all(alpha>=0)==False or np.all(alpha<=1)==False):  #check that they are [0,1]
-      print "The %s must contain only elements in the range [0,1]" % str(alphatype)[6:-1]
+      print("The %s must contain only elements in the range [0,1]" % str(alphatype)[6:-1])
       exit()
   n_alpha = alpha.size
 

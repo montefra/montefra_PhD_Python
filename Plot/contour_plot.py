@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 import colmaps as cm
@@ -7,12 +7,12 @@ import itertools as it  #optimized iteration tools
 import matplotlib.pyplot as plt  #plotting stuff
 import myplotmodule as mpm   # my model used to plot
 import numpy as np  #numpy
-import os    #contain OS dependent stuffs: it helps with sistem portability  
-import sys    #mondule sys
+import os    #contain OS dependent stuffs: it helps with system portability  
+import sys    #module sys
 
 def parse(argv):
     """
-    This function accept a list of strings, create and fill a parser istance 
+    This function accept a list of strings, create and fill a parser instance 
     and return a populated namespace
 
     Parameters
@@ -38,7 +38,7 @@ def parse(argv):
             formatter_class=ap.ArgumentDefaultsHelpFormatter)
 
     p.add_argument("columns", action="store", nargs=2, help="""Name of the
-            two colums as appears in the first column of each parameter file
+            two columns as appears in the first column of each parameter file
             name.""")
 
     p.add_argument("ifroot", action="store", nargs='+', 
@@ -50,7 +50,7 @@ def parse(argv):
     pf = p.add_argument_group(description='Input-output file options')
 
     pf.add_argument("--ext-chain", action="store", default=".0.5_total.dat",
-            help="""Extension to create tht chain file names""")
+            help="""Extension to create the chain file names""")
     pf.add_argument("--ext-parmn", action="store", default=".paramnames",
             help="""Extension of the parameter file names""")
 
@@ -96,7 +96,7 @@ def parse(argv):
             help="Number of bins for the 2D histogram") 
 
     p2D.add_argument("-s", "--smooth", action="store_true", help="""Turn on the
-            smothing of the 2D histogram""")
+            smoothing of the 2D histogram""")
 
     p2D.add_argument("-l", "--level", type=float, nargs="+",
             help="""Confidence levels for the contour plot. '%(dest)s' must be
@@ -163,11 +163,11 @@ if __name__ == "__main__":   # if is the main
         print("The number of legend tags must be the same as the number of file roots")
         exit()
         
-    #line style twicks uncomment for final files
+    #line style tweaks uncomment for final files
     t0,t1 = mpm.linestyles[:2]   #invert the first and second elements of the line style
     t2,t3 = mpm.linestyles[2:4]   #invert the third and fourth elements of the line style
-    mpm.linestyles[:2] = t2,t3
-    mpm.linestyles[2:4] = t1,t0
+    mpm.linestyles[:2] = t1,t0
+    #mpm.linestyles[2:4] = t3,t3
 
     # get parameter names
     paramnames = cf.get_paramnames(args.ifroot, args.columns,
@@ -187,19 +187,19 @@ if __name__ == "__main__":   # if is the main
         yr = [min(yr[0], np.amin(ch[:,2])), max(yr[1], np.amax(ch[:,2]))]
 
     if args.verbose:
-        print "Converting the MCMC chains in 2d histograms"
+        print("Converting the MCMC chains in 2d histograms")
     h2D, xe, ye = cf.hist2D(totchain, xr=xr, yr=yr, bins=args.num_bins,
             smooth=args.smooth)
 
     #select the colors and make the custom colors
     if args.level is not None:  #if the confidence levels are given
-        # return a list of arrays containing the ampliudes relative to the
+        # return a list of arrays containing the amplitudes relative to the
         # maxima corresponding to the confidence levels
         amplitude = cf.h2D2conflev(h2D, args.level)
         n_shades = 1   #if alpha shades wanted give the number of them
         if args.alpha:
             n_shades = len(args.ifroot)
-        #create authomatic colors
+        #create automatic colors
         colors = cm.cols_shades(len(args.ifroot), n_levels, alpha=n_shades)
         #colors = cm.custom_colors()
 
@@ -211,9 +211,9 @@ if __name__ == "__main__":   # if is the main
 
     #do the contour plots
     lines = []
-    for i,h,x,y in it.izip(it.count(), h2D, xe, ye):   #plot the filled contours plots
+    for i,h,x,y in zip(it.count(), h2D, xe, ye):   #plot the filled contours plots
         if(args.level != None):  #if the confidence levels are given
-            col = (tuple(colors[i,j,:]) for j in range(n_levels))
+            col = [tuple(colors[i,j,:]) for j in range(n_levels)]
             alphas = colors[i,0,3]
             if args.no_fill:
                 #filled contours
@@ -283,7 +283,7 @@ if __name__ == "__main__":   # if is the main
                 txt[i].set_color(list(line.get_color()[0]))
 
     #save or display the figure
-    fig.tight_layout()
+    fig.tight_layout(pad=0.5)
     if args.output is None:
         plt.show()
     else:
