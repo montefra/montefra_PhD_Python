@@ -5,6 +5,7 @@ MCMC chains produced by COSMOMC"""
 import numpy as np  #numpy
 import smooth as sm  #import the gaussian kernel density estimate function 
 import sys
+from warnings import warn
 
 class ContourError(Exception):
     """exception in this module and Plot/contour_plot.py"""
@@ -39,7 +40,7 @@ def _check_type(string_iter):
 
     return is_string, is_listlike
 
-def _get_paramnames(fname, params=None, verbose=False, skip=False):
+def _get_paramnames(fname, params=None, verbose=False, skip=False, warn_no_params=False):
     """ 
     Read the parameter file name 'fname'. 
     If fname does not exist and skip==True return None
@@ -54,6 +55,9 @@ def _get_paramnames(fname, params=None, verbose=False, skip=False):
         more output
     skip: bool (optional)
         skip non existing files
+    warn_no_params: bool (optional)
+        if some of the params is not in the parameter file, warn instead of raising and
+        error
     output
     ------
     parindex: list of lists
@@ -87,11 +91,16 @@ def _get_paramnames(fname, params=None, verbose=False, skip=False):
                     parindex.append([i, tmn[0].strip('*'), tmn[1]]) 
                     break
         if len(parindex) != len(params):
-            raise ContourError("""File '{}' doesn't have at least one of the
-                    parameters '{}'""".format(fname, params))
+            message = """File '{}' doesn't have at least one of the parameters
+                '{}'""".format(fname, params)
+            if warn_no_params:
+                warn(message) 
+            else: 
+                raise ContourError(message)
     return parindex
 
-def get_paramnames(file_roots, params=None, ext=".paramnames", verbose=False, skip=False):
+def get_paramnames(file_roots, params=None, ext=".paramnames", verbose=False, skip=False,
+        warn_no_params=False):
     """For each file 'file_roots+ext' finds the indeces of the elements in params
     that matcht what is stored in the first columns of the parametere file names
 
@@ -108,6 +117,8 @@ def get_paramnames(file_roots, params=None, ext=".paramnames", verbose=False, sk
         more output
     skip: bool (optional)
         skip non existing files
+    warn_no_params: bool (optional)
+        if some of the params is not in the parameter file, warn instead of raising and
     output
     ------
     parindex: 
@@ -122,14 +133,14 @@ def get_paramnames(file_roots, params=None, ext=".paramnames", verbose=False, sk
 
     if is_string: 
         parindex = _get_paramnames(file_roots+ext, params=params,
-                verbose=verbose, skip=skip)
+                verbose=verbose, skip=skip, warn_no_params=warn_no_params)
         if parindex is None:
             ContourError("The file '{}' does not exists".format(file_roots+ext))
         else:
             return parindex
     elif is_listlike:
         parindex = [_get_paramnames(fr+ext, params=params, verbose=verbose,
-            skip=skip) for fr in file_roots]
+            skip=skip, warn_no_params=warn_no_params) for fr in file_roots]
         return(parindex)
 
 def get_chains(file_roots, cols, ext=".txt", verbose=False):
