@@ -168,7 +168,8 @@ def do_mean_std(froots, **kwargs):
     if is_string:
         froots = [froots]
     paramnames = cf.get_paramnames(froots, params=kwargs.get('columns'),
-            ext=kwargs.get('ext_parmn'), verbose=kwargs.get('verbose', False))
+            ext=kwargs.get('ext_parmn'), verbose=kwargs.get('verbose', False),
+            warn_no_params=True)
 
     # get the column numbers and the chains
     cols = [[j[0]+2 for j in i] for i in paramnames]
