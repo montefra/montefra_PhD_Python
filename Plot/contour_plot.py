@@ -275,6 +275,7 @@ if __name__ == "__main__":   # if is the main
         if(args.legend_frame is None):
             l.draw_frame(False)
         else:
+            l.set_frame_on(True)
             l.get_frame().set_edgecolor(args.legend_frame)
             l.get_frame().set_facecolor(args.legend_frame)
 
