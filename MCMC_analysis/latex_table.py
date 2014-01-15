@@ -102,12 +102,20 @@ def parse(argv):
     pf.add_argument("-o", "--output", default="latextable.tex", 
             help="Output file name")
 
+    pf.add_argument("-l", "--landscape", action="store_true", 
+            help="""Save the table in the 'landscape' environment instead of 'table'.
+            Remember to use '\\usepackage{lscape}'""")
+
     pf.add_argument("-f", "--format", default=[], nargs='+', action=apc.multiple_of(2,
-            reshape=True), help="""Set the format for the variable '%(dest)s[0]' to
-            '%(dest)s[1]'. The variable is identified with the short name from the
+            reshape=True), help="""Set the format for the variable '%(dest)s' to
+            '%(dest)s'. The variable is identified with the short name from the
             parameter file. Multiple formats can be given providing couple of
-            variable-format. All the variables without a specified format will have '%.3f'
+            variable-format. All the variables without a specified format will have '%%.3f'
             assigned""")
+
+    pf.add_argument("-s", "--spacing", help="""Spacing between table rows. If not set,
+            default used. If given, must be something 4pt. See
+            http://en.wikibooks.org/wiki/LaTeX/Lengths for more info""")
 
     return p.parse_args(args=argv)
 
@@ -289,6 +297,8 @@ def make_table(mean, std_perc, labels, **kwargs):
             don't show empty lines
         +format: dictionary
             key: parameter short name; value: format
+        +spacing: None or string
+            table row spacing
 
     output
     ------
@@ -303,26 +313,42 @@ def make_table(mean, std_perc, labels, **kwargs):
 
     # cell input template
     from string import Template
-    if do_std:
-        tcell = Template(r"$${0:$fmt} \pm {1:$fmt}$$")
-    else:
-        tcell = Template(r"$${0:$fmt}_{{{1[0]:+$fmt}}}^{{{1[1]:+$fmt}}}$$")
+    tcell_std = Template(r"$${0:$fmt} \pm {1:$fmt}$$")  # standard deviation
+    tcell_per = Template(r"$${0:$fmt}_{{{1[0]:+$fmt}}}^{{{1[1]:+$fmt}}}$$")  #percentile
+    # format of every number in cell. Used to check if the upper and lower percentile are
+    # the same at the desired format
+    single_number = Template(r"{0:$fmt}")  
 
     table = {}
     for k,l in labels.items():
         line = ["$"+l+"$"]
+        # set the format for the line
+        fmt=dformat[k].strip('%')  # cell format
+        cell_std = tcell_std.substitute(fmt=fmt)
+        cell_per = tcell_per.substitute(fmt=fmt)
+        sn = single_number.substitute(fmt=fmt)
+
         for m,s in zip(mean[k], std_perc[k]):
             if np.isnan(m): # if the mean is nan, the variable does not exist
                 line.append("--")
+            elif do_std: # just standard deviation
+                line.append(cell_std.format(m, s))
+            # if the percentile is to be printed, check if the upper and lower limits
+            # are the same at the required accuracy. 
+            # if yes print it as standard deviation
+            elif sn.format(abs(s[0])) == sn.format(abs(s[1])):
+                line.append(cell_std.format(m, abs(s[0])))
             else:
-                cell = tcell.substitute(fmt=dformat[k].strip('%'))
-                line.append(cell.format(m, s))
+                line.append(cell_per.format(m, s))
+
         if line.count("--") != len(mean[k]) or kwargs.get('comment', False):
-            table[k] = " & ".join(line)+r"\\[0.5mm]"
+            table[k] = " & ".join(line) + r"\\"
+            if kwargs.get('spacing', None) is not None:
+                table[k]+="[{}]".format(kwargs['spacing'])
 
     return table
 
-def save_table(fname, tags, keylist, table):
+def save_table(fname, tags, keylist, table, **kwargs):
     """
     Save the table into file fname
     Parameters
@@ -335,9 +361,15 @@ def save_table(fname, tags, keylist, table):
         list of keys of the table. Used to print the table ordered
     table: dictionary
         key: parameter short name; value: line to save in the table
+    kwargs: dictionary
+        +landscape: bool
+            use landscape instead of table environment
     """
     
-    otable  = [r'\begin{table*}']
+    if kwargs.get('landscape', False):
+        otable  = [r'\begin{landscape}']
+    else:
+        otable  = [r'\begin{table*}']
     otable += [r'  \centering']
     otable += [r'  \begin{minipage}{160mm}']
     otable += [r'    \caption{<+Caption text+>}']
@@ -353,7 +385,10 @@ def save_table(fname, tags, keylist, table):
     otable += [r'      \hline']
     otable += [r'    \end{tabular}']
     otable += [r'  \end{minipage}']
-    otable += [r'\end{table*}']
+    if kwargs.get('landscape', False):
+        otable += [r'\end{landscape}']
+    else:
+        otable += [r'\end{table*}']
 
     with open(fname, 'w') as f:
         f.writelines('\n'.join(otable))
@@ -387,7 +422,7 @@ def main(argv):
     # create the latex table
     dtable = make_table(mean, std_perc, longnames, **vars(args))
     # and write it to file
-    save_table(args.output, args.tag, keylist, dtable) 
+    save_table(args.output, args.tag, keylist, dtable, **vars(args)) 
 
 if __name__ == "__main__":   # if is the main
 
