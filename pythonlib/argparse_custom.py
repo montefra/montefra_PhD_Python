@@ -5,7 +5,7 @@ import io_custom as ioc
 import itertools as it
 import my_functions as mf
 
-#formatter_class that allows raw dextription and argument default
+#formatter_class that allows raw description and argument default
 class RawDescrArgDefHelpFormatter(ap.RawDescriptionHelpFormatter,
         ap.ArgumentDefaultsHelpFormatter):
     """
