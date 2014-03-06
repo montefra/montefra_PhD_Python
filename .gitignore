@@ -7,4 +7,6 @@
 *.txt
 *~
 core
-
+Extras
+*.ini
+Tests
