@@ -227,7 +227,6 @@ def parse(argv):
     return p.parse_args(args=argv)
 #end def parse(argv)
 
-
 # custom errors and warnings
 class IniNumber(Exception):
     def __init__(self, key, n):
@@ -753,7 +752,7 @@ def plot_variance(axs_dic, kmax, stddev):
 def shave_y_tick_labels(axs_dic):
     """
     automatically removes the first and last tick labels to avoid overlap and
-    if ther are more than 5 labels, print only one out of two
+    if there are more than 5 labels, print only one out of two
     """
     return
     for ax in axs_dic.values():
