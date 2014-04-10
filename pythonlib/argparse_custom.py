@@ -380,7 +380,8 @@ def file_exists(warning=False, remove=False):
             # message to send to the error handling 
             message = "can't open '%s'"
             # if only one file name passed
-            if isinstance(values, str):
+            from six import string_types
+            if isinstance(values, string_types):
                 if not ioc.file_exists(values):
                     raise ap.ArgumentTypeError(message % (values))
             else:
